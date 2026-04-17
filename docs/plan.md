@@ -6,7 +6,7 @@ This document outlines the complete, end‑to‑end implementation plan for the 
 > - **Backend**: FastAPI (Python 3.11+) + `pylxd` — rich ecosystem, fast iteration, pylxd is the canonical Python LXD client
 > - **Frontend**: HTMX + Alpine.js — no build step, minimal JS, fits the "functional over fancy" principle
 > - **Reverse proxy**: Caddy — automatic TLS via ACME, readable single-file config
-> - **Metadata store**: SQLite via SQLAlchemy — zero-ops, easy to back up, supports concurrent reads
+> - **Metadata store**: JSON file (`containers.json`) — human-readable, trivially backed up, no migrations, sufficient for the realistic scale of a home server (tens to low-hundreds of containers)
 > - **Authentication**: Bearer API-key token stored in `.env`; passthrough on loopback for dev
 > - **Shell access**: `ttyd` running inside each container on a fixed port, proxied by Caddy
 > - **VS Code Server**: `code-server` running inside each container, proxied by Caddy
@@ -42,7 +42,7 @@ This document outlines the complete, end‑to‑end implementation plan for the 
 - `/srv/yetaos/data` — optional shared datasets (mounted read-write)
 - `/srv/yetaos/workspaces/<container-name>` — persistent workspace per container
 - `/srv/yetaos/secrets` — per-container secret files (mode 0700, owned by service user)
-- `/srv/yetaos/db` — SQLite database file
+- `/srv/yetaos/db` — JSON metadata store directory (`containers.json`)
 - Create all dirs in `scripts/host-setup.sh` (idempotent: `mkdir -p`)
 
 ### 1.4 Service user
@@ -318,7 +318,7 @@ This means secrets are never stored inside the container image or cloud-init use
 - **Language**: Python 3.11
 - **Framework**: FastAPI with Uvicorn
 - **LXD client**: `pylxd` (talks to `/var/snap/lxd/common/lxd/unix.socket`)
-- **ORM**: SQLAlchemy 2.x with SQLite
+- **Metadata store**: JSON file via Pydantic (see §4.7)
 - **Config**: Pydantic Settings loaded from `.env`
 - **Async**: FastAPI async routes; blocking pylxd calls wrapped in `asyncio.run_in_executor`
 
@@ -341,10 +341,9 @@ backend/
 │  ├─ profiles/
 │  │  ├─ registry.py       # Load profile YAMLs from disk
 │  │  └─ resolver.py       # Dependency resolution (topological sort)
-│  ├─ db/
-│  │  ├─ models.py         # SQLAlchemy ORM models
-│  │  ├─ session.py        # DB session factory
-│  │  └─ crud.py           # CRUD helpers
+│  ├─ store/
+│  │  ├─ models.py         # Pydantic models for container metadata
+│  │  └─ json_store.py     # Atomic JSON read/write helpers
 │  └─ schemas.py           # Pydantic request/response models
 ├─ tests/
 │  ├─ conftest.py
@@ -360,7 +359,7 @@ backend/
 
 ```dotenv
 YETAOS_LXD_SOCKET=/var/snap/lxd/common/lxd/unix.socket
-YETAOS_DB_PATH=/srv/yetaos/db/yetaos.db
+YETAOS_STORE_PATH=/srv/yetaos/db/containers.json
 YETAOS_PROFILES_DIR=/path/to/repo/lxc/profiles
 YETAOS_CLOUD_INIT_DIR=/path/to/repo/lxc/cloud-init
 YETAOS_WORKSPACES_DIR=/srv/yetaos/workspaces
@@ -430,25 +429,59 @@ class ContainerResponse(BaseModel):
 
 All blocking pylxd calls are wrapped with `loop.run_in_executor(None, ...)` to avoid blocking the FastAPI event loop.
 
-### 4.7 Metadata store (SQLite)
+### 4.7 Metadata store (JSON file)
 
-SQLAlchemy model:
+**Why not SQLite?**  
+At home-server scale (realistic max: tens to low-hundreds of containers), a relational database adds complexity with no practical benefit: SQLAlchemy introduces ~300 lines of boilerplate (ORM models, session factory, migrations), Alembic migration scripts must be written for every schema change, and the data is a simple flat collection with no joins or complex queries. A JSON file is human-readable, trivially backed up with `cp`, inspectable without any tooling, and fast at this scale.
+
+**Implementation (`app/store/`)**
+
+Pydantic model:
 
 ```python
-class Container(Base):
-    __tablename__ = "containers"
-    name: str (PK)
+class ContainerRecord(BaseModel):
+    name: str
     profile_string: str
-    resolved_profiles: JSON          # list[str]
+    resolved_profiles: list[str]
     ephemeral: bool
     gpu_enabled: bool
     created_at: datetime
-    last_used: datetime | None
-    status: str                      # last known status
-    workspace_path: str | None       # host path to /workspace bind mount
+    last_used: datetime | None = None
+    status: str                      # "running" | "stopped" | "error"
+    workspace_path: str | None = None
 ```
 
-Migrations: use Alembic; initial migration creates the table on first run.
+`containers.json` layout — a JSON object keyed by container name:
+
+```json
+{
+  "myenv": {
+    "name": "myenv",
+    "profile_string": "/dev/python:rocm/claude/rocm-gpu/",
+    "resolved_profiles": ["service/base", "service/rocm-gpu", "tool/python", "tool/python-rocm", "agent/claude"],
+    "ephemeral": false,
+    "gpu_enabled": true,
+    "created_at": "2026-04-17T00:00:00Z",
+    "last_used": null,
+    "status": "stopped",
+    "workspace_path": "/srv/yetaos/workspaces/myenv"
+  }
+}
+```
+
+`app/store/json_store.py` helpers:
+
+```python
+def load() -> dict[str, ContainerRecord]
+def save(records: dict[str, ContainerRecord]) -> None   # atomic: write to .tmp then os.replace
+def get(name: str) -> ContainerRecord | None
+def upsert(record: ContainerRecord) -> None
+def delete(name: str) -> None
+```
+
+Writes are atomic (`write to containers.json.tmp`, then `os.replace()`) to prevent corruption on crash.  
+A `threading.Lock` guards all reads and writes; the backend runs with a single Uvicorn worker, so this is sufficient.  
+If multi-worker deployments are ever needed, a `filelock`-based advisory lock can be added without changing the interface.
 
 ### 4.8 Artifact export
 
@@ -637,7 +670,7 @@ Notes:
 ### 7.1 Unit tests (`backend/tests/`)
 - `test_resolver.py` — dependency resolution on mock profile trees; cycle detection
 - `test_cloud_init.py` — merge of fragments; deduplication; correct ordering
-- `test_crud.py` — DB CRUD helpers with in-memory SQLite
+- `test_store.py` — JSON store helpers: upsert, delete, atomic write, concurrent access
 
 ### 7.2 Integration tests
 - Mock `pylxd` using `unittest.mock` — no real LXD required in CI
@@ -687,7 +720,7 @@ WorkingDirectory=/opt/yetaos
 EnvironmentFile=/etc/yetaos/.env
 ExecStart=/opt/yetaos/venv/bin/uvicorn app.main:app \
     --host ${YETAOS_HOST} --port ${YETAOS_PORT} \
-    --workers 2 --log-level ${YETAOS_LOG_LEVEL}
+    --workers 1 --log-level ${YETAOS_LOG_LEVEL}
 Restart=on-failure
 RestartSec=5
 
@@ -709,7 +742,7 @@ Committed to repo; applied via `lxd init --preseed < scripts/lxd-init-preseed.ya
 │  │  ├─ api/
 │  │  ├─ lxd/
 │  │  ├─ profiles/
-│  │  ├─ db/
+│  │  ├─ store/
 │  │  ├─ templates/
 │  │  ├─ static/
 │  │  ├─ main.py
@@ -786,7 +819,7 @@ Committed to repo; applied via `lxd init --preseed < scripts/lxd-init-preseed.ya
 ### Milestone 2 — Backend MVP
 - [ ] `backend/pyproject.toml` with all dependencies pinned
 - [ ] `app/config.py` — Pydantic Settings from `.env`
-- [ ] `app/db/` — SQLAlchemy models, session, migrations (Alembic)
+- [ ] `app/store/` — Pydantic `ContainerRecord` model + atomic JSON store helpers
 - [ ] `app/lxd/client.py` — pylxd singleton
 - [ ] `app/lxd/containers.py` — create/start/stop/delete/exec/pull
 - [ ] `app/profiles/registry.py` — load profiles from disk
@@ -794,7 +827,7 @@ Committed to repo; applied via `lxd init --preseed < scripts/lxd-init-preseed.ya
 - [ ] `app/lxd/cloud_init.py` — merge fragments → user-data YAML
 - [ ] `app/api/containers.py` — CRUD + start/stop/delete endpoints
 - [ ] `app/api/health.py` — health check
-- [ ] Unit tests: resolver, cloud-init merge, CRUD
+- [ ] Unit tests: resolver, cloud-init merge, JSON store
 - [ ] Integration tests: all container CRUD API routes (mocked pylxd)
 
 ### Milestone 3 — Frontend MVP
