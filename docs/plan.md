@@ -193,48 +193,80 @@ The main cloud init script merges all profiles in the profile string, eliminates
   - Generate final cloud-init user-data
 
 ### 4.4 Metadata Store
-**DECISION: Use SQLite** for structured queries and easy backup
+**DECISION: Use JSON file-based storage** for simplicity and transparency
 
-Schema:
-```sql
-CREATE TABLE containers (
-  id TEXT PRIMARY KEY,
-  name TEXT UNIQUE NOT NULL,
-  profile_string TEXT NOT NULL,
-  ephemeral BOOLEAN NOT NULL,
-  gpu_enabled BOOLEAN NOT NULL,
-  status TEXT NOT NULL,  -- creating, running, stopped, error, deleted
-  created_at TIMESTAMP NOT NULL,
-  last_used TIMESTAMP,
-  deleted_at TIMESTAMP
-);
+Rationale:
+- Home server use case: typically <50 containers, not thousands
+- JSON is human-readable, easy to debug and backup
+- No database setup/migration complexity
+- Can grep/edit files directly if needed
+- Atomic writes prevent corruption
+- Performance is more than adequate for this scale (<1ms reads at 100 containers)
+- If scale becomes an issue (>1000 containers), migrate to SQLite later
 
-CREATE TABLE container_metadata (
-  container_id TEXT PRIMARY KEY,
-  environment_type TEXT,
-  tools TEXT,  -- JSON array
-  agents TEXT,  -- JSON array
-  services TEXT,  -- JSON array
-  FOREIGN KEY (container_id) REFERENCES containers(id)
-);
-
-CREATE TABLE snapshots (
-  id TEXT PRIMARY KEY,
-  container_id TEXT NOT NULL,
-  name TEXT NOT NULL,
-  created_at TIMESTAMP NOT NULL,
-  FOREIGN KEY (container_id) REFERENCES containers(id)
-);
-
-CREATE TABLE secrets (
-  id TEXT PRIMARY KEY,
-  container_id TEXT NOT NULL,
-  key TEXT NOT NULL,
-  value TEXT NOT NULL,  -- encrypted
-  FOREIGN KEY (container_id) REFERENCES containers(id),
-  UNIQUE (container_id, key)
-);
+File structure:
 ```
+/var/lib/dev-orchestrator/
+├── containers.json        # Main container registry
+├── secrets.json          # Encrypted secrets (separate file for security)
+└── backups/              # Automatic backups on changes
+    ├── containers.json.backup-20260417-120000
+    └── secrets.json.backup-20260417-120000
+```
+
+**containers.json** format:
+```json
+{
+  "containers": {
+    "pytorch-lab-1": {
+      "id": "c9f3a8b2-...",
+      "name": "pytorch-lab-1",
+      "profile_string": "/dev/python+rocm/claude/",
+      "ephemeral": false,
+      "gpu_enabled": true,
+      "status": "running",
+      "created_at": "2026-04-15T10:30:00Z",
+      "last_used": "2026-04-17T08:15:00Z",
+      "metadata": {
+        "environment_type": "dev",
+        "tools": ["python", "rocm"],
+        "agents": ["claude"],
+        "services": []
+      },
+      "snapshots": [
+        {
+          "id": "snap-1",
+          "name": "before-upgrade",
+          "created_at": "2026-04-16T14:20:00Z"
+        }
+      ]
+    }
+  }
+}
+```
+
+**secrets.json** format (Fernet-encrypted values):
+```json
+{
+  "secrets": {
+    "pytorch-lab-1": {
+      "CLAUDE_API_KEY": "gAAAAABh...",  // encrypted
+      "GITHUB_TOKEN": "gAAAAABh..."     // encrypted
+    }
+  }
+}
+```
+
+Implementation:
+- Use Python's `json` module with atomic writes (write to temp, then rename)
+- Lock file during writes to prevent concurrent modification
+- Auto-backup before every write
+- Keep last 10 backups, rotate older ones
+- Validate JSON schema on load
+
+Migration path if needed:
+- At >500 containers or if query performance degrades, switch to SQLite
+- Provide migration script: `python -m app.db.migrate_from_json`
 
 ### 4.5 Artifact Export
 - Execute inside container:
@@ -513,8 +545,11 @@ lxd:
   default_image: ubuntu:22.04
   default_profile: baseline
 
-database:
-  path: /var/lib/dev-orchestrator/orchestrator.db
+metadata:
+  containers_file: /var/lib/dev-orchestrator/containers.json
+  secrets_file: /var/lib/dev-orchestrator/secrets.json
+  backup_dir: /var/lib/dev-orchestrator/backups
+  max_backups: 10
 
 profiles:
   path: ../lxc/profiles
@@ -641,7 +676,7 @@ set -e
 
 # Create directories
 sudo mkdir -p /srv/dev-orchestrator/{models,data,containers}
-sudo mkdir -p /var/lib/dev-orchestrator
+sudo mkdir -p /var/lib/dev-orchestrator/backups
 sudo mkdir -p /var/log/dev-orchestrator
 
 # Install backend
@@ -655,8 +690,8 @@ sudo cp systemd/dev-orchestrator.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable dev-orchestrator
 
-# Initialize database
-python -m app.db.init
+# Initialize metadata files
+python -m app.metadata.init
 
 # Set secret key (user must provide)
 echo "ORCHESTRATOR_SECRET_KEY=$(openssl rand -hex 32)" | sudo tee -a /etc/environment
@@ -698,7 +733,8 @@ WantedBy=multi-user.target
 - Version profiles under `lxc/profiles/{name}/v{X}`
 - Allow container creation with specific version
 - Document migration steps for breaking changes
-- Keep database migrations in `backend/app/db/migrations/`
+- JSON schema versioning in metadata files
+- If migrating to SQLite: Provide migration script `python -m app.db.migrate_from_json`
 
 ---
 
@@ -729,7 +765,7 @@ WantedBy=multi-user.target
 - [ ] Backend API endpoints (create, list, start, stop, delete)
 - [ ] Profile parser and dependency resolution
 - [ ] Cloud-init merger
-- [ ] SQLite metadata store
+- [ ] JSON metadata store with atomic writes
 - [ ] Frontend dashboard with container list
 - [ ] Frontend create environment page
 - [ ] Container lifecycle working end-to-end
@@ -769,7 +805,7 @@ WantedBy=multi-user.target
    - Test manual container creation
 3. **Backend scaffolding**
    - FastAPI project structure
-   - Database schema and initialization
+   - JSON metadata store initialization
    - Configuration loader
    - Basic logging
 
@@ -888,10 +924,10 @@ WantedBy=multi-user.target
 │  │  │  ├─ profile_parser.py # Profile parsing & dependencies
 │  │  │  ├─ cloudinit_merger.py  # Cloud-init merging
 │  │  │  └─ secrets.py        # Secret management
-│  │  ├─ db/
-│  │  │  ├─ init.py           # Database initialization
-│  │  │  ├─ models.py         # SQLAlchemy models
-│  │  │  └─ migrations/       # Database migrations
+│  │  ├─ metadata/
+│  │  │  ├─ init.py           # Metadata store initialization
+│  │  │  ├─ store.py          # JSON file operations
+│  │  │  └─ models.py         # Pydantic models for validation
 │  │  └─ schemas/
 │  │     └─ container.py      # Pydantic schemas
 │  ├─ tests/
@@ -983,7 +1019,7 @@ Deliverables:
 - [ ] Host setup documentation complete
 - [ ] LXD initialized with baseline profile
 - [ ] Manual container creation tested
-- [ ] Backend project scaffolding (FastAPI + DB)
+- [ ] Backend project scaffolding (FastAPI + JSON metadata store)
 - [ ] Profile YAML format defined
 - [ ] Cloud-init YAML format defined
 - [ ] 2-3 profile YAMLs created (baseline, python, claude agent)
@@ -996,7 +1032,7 @@ Deliverables:
 - [ ] Profile parser with dependency resolution
 - [ ] Cloud-init merger implementation
 - [ ] LXD integration layer (`LXDManager`)
-- [ ] SQLite database initialized
+- [ ] JSON metadata store with atomic writes and backups
 - [ ] API endpoints: create, list, start, stop, delete
 - [ ] Secret management implemented
 - [ ] Unit tests for core logic (>80% coverage)
