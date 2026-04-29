@@ -137,6 +137,10 @@ Each environment runs in an isolated LXC container and can be **ephemeral** (aut
 [ ] Add metrics and basic observability
 [ ] Publish example environment definitions
 
+## Design notes
+
+- `docs/pr1-vs-pr2.md` contains a comparison of PR #1 vs PR #2 design proposals.
+
 ## Contributing
 
 Issues and PRs are welcome. The guiding principles are:
