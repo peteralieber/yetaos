@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 
 from app.api.deps import get_lxd_service, get_registry, get_store, verify_api_key
 from app.config import get_settings
-from app.lxd.cloud_init import build_user_data
+from app.lxd.container_init import build_user_data
 from app.lxd.containers import LXDContainerService
 from app.profiles.registry import ProfileRegistry
 from app.profiles.resolver import ProfileResolver

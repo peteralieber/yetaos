@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from app.lxd.cloud_init import build_user_data
+from app.lxd.container_init import build_user_data
 from app.profiles.registry import ProfileRegistry
 
 

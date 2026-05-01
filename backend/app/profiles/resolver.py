@@ -19,11 +19,7 @@ class ProfileResolver:
             if not segment:
                 continue
             for token in segment.split("+"):
-                if ":" in token:
-                    base, sub = token.split(":", 1)
-                    requested.append(f"{category}/{base}:{sub}")
-                else:
-                    requested.append(f"{category}/{token}")
+                requested.append(f"{category}/{token}")
         return requested
 
     def resolve_from_string(self, profile_string: str) -> list[str]:
