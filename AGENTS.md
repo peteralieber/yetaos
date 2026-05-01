@@ -57,6 +57,9 @@ The goal is to provide a **deterministic, reproducible, and privacy-respecting**
   - Environment template definitions
   - Example workflows
 
+## Tools to use
+- Use 'uv' to manage the project, dependencies, and running scripts
+
 ## Things to avoid
 
 - Do not introduce external hosted dependencies that compromise privacy.

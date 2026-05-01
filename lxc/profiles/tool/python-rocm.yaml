@@ -1,0 +1,10 @@
+name: tool/python:rocm
+description: Python with ROCm-enabled torch
+category: tool
+depends:
+  - tool/python
+  - service/rocm-gpu
+lxd:
+  config: {}
+  devices: {}
+cloud_init: lxc/cloud-init/tool/python-rocm.sh

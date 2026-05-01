@@ -1,0 +1,9 @@
+name: use-case/dev
+description: Generic development container
+category: use-case
+depends:
+  - service/base
+lxd:
+  config: {}
+  devices: {}
+cloud_init: null

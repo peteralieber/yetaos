@@ -1,0 +1,9 @@
+name: tool/python
+description: Python 3.11 and uv tooling
+category: tool
+depends:
+  - service/base
+lxd:
+  config: {}
+  devices: {}
+cloud_init: lxc/cloud-init/tool/python.sh
