@@ -233,7 +233,7 @@ apt-get install -y curl git ca-certificates sudo htop jq build-essential
 ```bash
 # default: latest python3 from Ubuntu repos; version pinned at container creation time
 apt-get install -y python3 python3-venv python3-dev python3-pip
-pip install --upgrade uv   # latest uv; version recorded in container metadata at creation
+python3 -m pip install --upgrade uv   # latest uv; version recorded in container metadata at creation
 ```
 
 **`lxc/cloud-init/tool/python-rocm.sh`** (subprofile)
