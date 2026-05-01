@@ -1,0 +1,15 @@
+[Unit]
+Description=YETAOS Dev Orchestrator Backend
+After=network.target lxd.service
+
+[Service]
+User=yetaos
+Group=yetaos
+WorkingDirectory=/workspaces/yetaos/backend
+EnvironmentFile=/etc/yetaos/.env
+ExecStart=/workspaces/yetaos/backend/.venv/bin/uvicorn app.main:app --host ${YETAOS_HOST} --port ${YETAOS_PORT} --workers 1 --log-level ${YETAOS_LOG_LEVEL}
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

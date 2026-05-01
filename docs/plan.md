@@ -158,7 +158,8 @@ The orchestrator resolves the full ordered profile list at container-create time
 
 ### 2.7 Tool profiles
 - `lxc/profiles/tool/python.yaml`
-  - Cloud-init: Python 3.11 via deadsnakes PPA, `uv`, `venv`
+  - Init script: latest `python3` from Ubuntu repos (version pinned in resolved container config at creation time), `uv`, `venv`
+  - Users may request a specific version (e.g. `tool/python:3.12`) which overrides the default
   - Subprofile `python:rocm` — adds PyTorch ROCm wheels; depends on `service/rocm-gpu`
 - `lxc/profiles/tool/clang.yaml`
   - Subprofile `clang:riscv` — Clang 18 + RISC-V GNU toolchain + QEMU user-mode emulation
@@ -184,11 +185,17 @@ The orchestrator resolves the full ordered profile list at container-create time
 
 ### 3.1 Script structure
 
-Each profile's cloud-init fragment is a plain shell script stored at `lxc/cloud-init/<category>/<name>.sh`.  
+Each profile's init script fragment is a plain shell script stored at `lxc/cloud-init/<category>/<name>.sh`.  
 All scripts must be:
 - **Idempotent**: safe to run twice without side effects
 - **Non-interactive**: no prompts; use `-y` / `--yes` / `DEBIAN_FRONTEND=noninteractive`
-- **Versioned**: pin every package to a specific version; record versions in a comment at the top
+- **Version-agnostic by default**: profile scripts install the latest available version of each tool unless a specific version is requested; the resolved version is pinned in the generated container config at creation time
+
+**Version pinning policy:**
+- Profile scripts do **not** hard-code a version by default (e.g. `apt-get install -y python3`, `pip install uv`).
+- When a container is created, the orchestrator resolves the latest available versions and records them in the container's `metadata.json`.
+- Users may pin a version by using a versioned subprofile (e.g. `tool/python:3.12`) or by specifying versions in a future `versions:` profile field.
+- This ensures newly created containers default to current software, while the stored metadata guarantees reproducibility for that container's lifetime.
 
 The orchestrator generates a single merged cloud-init `user-data` document by concatenating the `runcmd` sections from each fragment in dependency order, wrapped in a standard header:
 
@@ -224,10 +231,9 @@ apt-get install -y curl git ca-certificates sudo htop jq build-essential
 
 **`lxc/cloud-init/tool/python.sh`**
 ```bash
-# Python 3.11 + uv
-add-apt-repository -y ppa:deadsnakes/ppa
-apt-get install -y python3.11 python3.11-venv python3.11-dev
-pip install --upgrade uv==0.4.x   # pin version
+# default: latest python3 from Ubuntu repos; version pinned at container creation time
+apt-get install -y python3 python3-venv python3-dev python3-pip
+python3 -m pip install --upgrade uv   # latest uv; version recorded in container metadata at creation
 ```
 
 **`lxc/cloud-init/tool/python-rocm.sh`** (subprofile)
@@ -809,58 +815,58 @@ Committed to repo; applied via `lxd init --preseed < scripts/lxd-init-preseed.ya
 ## 10. Milestones
 
 ### Milestone 1 — Host scaffolding and LXC profiles
-- [ ] `scripts/lxd-init-preseed.yaml` — LXD initialization preseed
-- [ ] `scripts/host-setup.sh` — idempotent host directory and user setup
-- [ ] `lxc/profiles/service/base.yaml` and `lxc/cloud-init/service/base.sh`
-- [ ] `lxc/profiles/service/rocm-gpu.yaml` (AMD GPU passthrough)
-- [ ] `lxc/profiles/use-case/dev.yaml` + `tool/python.yaml` + `tool/python-rocm.yaml`
+- [x] `scripts/lxd-init-preseed.yaml` — LXD initialization preseed
+- [x] `scripts/host-setup.sh` — idempotent host directory and user setup
+- [x] `lxc/profiles/service/base.yaml` and `lxc/cloud-init/service/base.sh`
+- [x] `lxc/profiles/service/rocm-gpu.yaml` (AMD GPU passthrough)
+- [x] `lxc/profiles/use-case/dev.yaml` + `tool/python.yaml` + `tool/python-rocm.yaml`
 - [ ] Manual E2E: launch a Python+ROCm container and run `rocminfo` inside it
 
 ### Milestone 2 — Backend MVP
-- [ ] `backend/pyproject.toml` with all dependencies pinned
-- [ ] `app/config.py` — Pydantic Settings from `.env`
-- [ ] `app/store/` — Pydantic `ContainerRecord` model + atomic JSON store helpers
-- [ ] `app/lxd/client.py` — pylxd singleton
-- [ ] `app/lxd/containers.py` — create/start/stop/delete/exec/pull
-- [ ] `app/profiles/registry.py` — load profiles from disk
-- [ ] `app/profiles/resolver.py` — topological sort with cycle detection
-- [ ] `app/lxd/cloud_init.py` — merge fragments → user-data YAML
-- [ ] `app/api/containers.py` — CRUD + start/stop/delete endpoints
-- [ ] `app/api/health.py` — health check
-- [ ] Unit tests: resolver, cloud-init merge, JSON store
-- [ ] Integration tests: all container CRUD API routes (mocked pylxd)
+- [x] `backend/pyproject.toml` with all dependencies pinned
+- [x] `app/config.py` — Pydantic Settings from `.env`
+- [x] `app/store/` — Pydantic `ContainerRecord` model + atomic JSON store helpers
+- [x] `app/lxd/client.py` — pylxd singleton
+- [x] `app/lxd/containers.py` — create/start/stop/delete/exec/pull
+- [x] `app/profiles/registry.py` — load profiles from disk
+- [x] `app/profiles/resolver.py` — topological sort with cycle detection
+- [x] `app/lxd/container_init.py` — merge fragments → user-data YAML
+- [x] `app/api/containers.py` — CRUD + start/stop/delete endpoints
+- [x] `app/api/health.py` — health check
+- [x] Unit tests: resolver, container-init merge, JSON store
+- [x] Integration tests: all container CRUD API routes (mocked pylxd)
 
 ### Milestone 3 — Frontend MVP
-- [ ] `app/templates/base.html`, `index.html` — dashboard with container list
+- [x] `app/templates/base.html`, `index.html` — dashboard placeholder (MVP stub)
 - [ ] `app/templates/create.html` — create form with live profile-string preview
 - [ ] HTMX polling for container status refresh
 - [ ] SSE log stream endpoint + frontend log panel
-- [ ] `app/api/profiles.py` — profiles list endpoint (populates create form dropdowns)
+- [x] `app/api/profiles.py` — profiles list endpoint (populates create form dropdowns)
 
 ### Milestone 4 — Container detail + shell + VS Code
 - [ ] `app/templates/container.html` — full detail page
-- [ ] `lxc/profiles/service/ttyd.yaml` + cloud-init fragment
-- [ ] `lxc/profiles/service/vscode-server.yaml` + cloud-init fragment
+- [ ] `lxc/profiles/service/ttyd.yaml` + init script fragment
+- [ ] `lxc/profiles/service/vscode-server.yaml` + init script fragment
 - [ ] Caddy config for shell and code-server proxying
 - [ ] Export endpoint + frontend download button
-- [ ] Snapshot create/list/restore API + frontend UI
+- [x] Snapshot create/list/restore API
 
 ### Milestone 5 — All environment templates + secrets
-- [ ] All remaining profiles and cloud-init fragments (clang:riscv, node, electron, blender, comfyui)
+- [ ] All remaining profiles and init script fragments (clang:riscv, node, electron, blender, comfyui)
 - [ ] Agent profiles: claude, copilot, opencode, openclaw
 - [ ] vLLM service profile
 - [ ] Per-container secret injection at start
-- [ ] `PUT /api/v1/containers/{name}/secrets` endpoint + UI
+- [x] `PUT /api/v1/containers/{name}/secrets` endpoint
 
 ### Milestone 6 — Deployment + ops
-- [ ] `scripts/install.sh`
-- [ ] `deploy/yetaos-backend.service`
-- [ ] `deploy/Caddyfile`
+- [x] `scripts/install.sh`
+- [x] `deploy/yetaos-backend.service`
+- [x] `deploy/Caddyfile`
 - [ ] Structured JSON logging
 - [ ] Idle shutdown background task
 - [ ] `docs/versions.md` — all pinned dependency versions
-- [ ] `docs/user-guide.md` — installation and usage instructions
-- [ ] CI workflow: lint (ruff), type-check (mypy), unit + integration tests
+- [x] `docs/user-guide.md` — installation and usage instructions
+- [x] CI workflow: lint (ruff), type-check (mypy), unit + integration tests
 
 ### Milestone 7 — Alpha release gate
 - [ ] All Milestone 1–6 items complete

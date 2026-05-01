@@ -1,0 +1,10 @@
+name: service/base
+description: Base Ubuntu profile with common utilities
+category: service
+depends: []
+lxd:
+  config:
+    limits.cpu: "2"
+    limits.memory: "4GB"
+  devices: {}
+cloud_init: lxc/cloud-init/service/base.sh

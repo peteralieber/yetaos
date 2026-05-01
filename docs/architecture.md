@@ -1,98 +1,362 @@
 # Project Architecture
 
-## High-level components
+## High-level overview
 
-### Home server
+YETAOS is a **FastAPI-based orchestrator** for spinning up reproducible, declarative LXC containers on a home server. Containers are composed from YAML-based **profiles** (service, tool, agent, use-case categories) with automatic dependency resolution, cloud-init fragment merging, and a REST API for lifecycle management.
 
-* Host OS: Linux (e.g., Ubuntu Server)
-* Virtualization layer: LXC/LXD
-* GPU stack: ROCm and/or NVIDIA drivers on host
-* Reverse proxy: nginx or Caddy (TLS, routing to web backend)
-* Service supervisor: systemd units or docker-compose (for the web app only)
+```
+┌─────────────────────────────────────────────────────┐
+│ Browser (HTMX + Alpine.js)                          │
+└──────────────────────┬──────────────────────────────┘
+                       │ HTTP/HTTPS
+        ┌──────────────┴──────────────┐
+        │  Caddy Reverse Proxy        │  :443 → :8000
+        │  (TLS termination)          │  Proxies: shell, VS Code
+        └──────────────┬──────────────┘
+                       │
+    ┌──────────────────┴──────────────────┐
+    │ FastAPI 0.115.8                     │
+    │ ┌─────────────────────────────────┐ │
+    │ │ REST API v1 Routes              │ │
+    │ │ - /api/v1/containers            │ │
+    │ │ - /api/v1/profiles              │ │
+    │ │ - /health                       │ │
+    │ └────────────┬─────────────────────┘ │
+    │              │                       │
+    │ ┌────────────┼─────────────────────┐ │
+    │ │ Core Layer │                     │ │
+    │ │ ┌──────────▼─────┐ ┌───────────┐│ │
+    │ │ │ LXD Service    │ │  Profile  ││ │
+    │ │ │ (async wrapper)│ │ Resolver  ││ │
+    │ │ └────────────────┘ └───────────┘│ │
+    │ │ ┌────────────────┐ ┌───────────┐│ │
+    │ │ │ Cloud-init     │ │ JSON      ││ │
+    │ │ │ Builder        │ │ Store     ││ │
+    │ │ └────────────────┘ └───────────┘│ │
+    │ └────────────────────────────────┘ │
+    └──────────────┬─────────────────────┘
+                   │ Unix socket
+        ┌──────────▼─────────────┐
+        │ LXD Daemon             │
+        │ /var/snap/lxd/common/  │
+        │ lxd/unix.socket        │
+        └──────────┬─────────────┘
+                   │
+        ┌──────────▼──────────────────────┐
+        │ LXC Containers                  │
+        │ ubuntu/24.04 + profiles         │
+        │ ┌─────────────────────────────┐ │
+        │ │ /dev/python:rocm            │ │
+        │ │ /dev/clang:riscv            │ │
+        │ │ /genai/comfyui              │ │
+        │ │ (more as we implement)      │ │
+        │ └─────────────────────────────┘ │
+        └────────────────────────────────┘
+```
 
-### Orchestrator service
+---
 
-* Backend API: FastAPI (Python) or Go HTTP service
-* Responsibilities:
-  * Manage LXC profiles and containers
-  * Expose REST API for container lifecycle
-  * Track metadata (env type, owner, ephemeral flag, created_at, etc.)
-  * Handle artifact export (tarball creation + download)
-  * Provide logs/status for containers
-* State storage:
-  * Lightweight DB (SQLite) or just a JSON/YAML registry for container metadata
-  * No secrets in DB—use environment variables or host secret store
+## Backend: Core components
 
-### Web UI
+### REST API (FastAPI)
 
-* Frontend: Minimal HTMX, justify anything more like Alpine
-* Responsibilities:
-  * Environment selection and configuration
-  * Container list (running, stopped, ephemeral, persistent)
-  * Actions: create, start, stop, delete, export artifacts
-* Links to:
-  * Web shell (e.g., wetty/ttyd) or
-  * VS Code Server / code-server endpoint inside container
+**Routes** (`app/api/`):
+- `GET /health` — Liveness check
+- `GET /api/v1/profiles` — List available profiles
+- `GET /api/v1/profiles/resolve?profile_string=/dev/python///` — Resolve dependency order
+- `POST /api/v1/containers` — Create container
+- `GET /api/v1/containers` — List containers
+- `GET /api/v1/containers/{name}` — Get container detail
+- `POST /api/v1/containers/{name}/start` — Start container
+- `POST /api/v1/containers/{name}/stop` — Stop container
+- `DELETE /api/v1/containers/{name}` — Delete container
+- `POST /api/v1/containers/{name}/snapshot` — Create snapshot
+- `PUT /api/v1/containers/{name}/secrets` — Update secrets
 
-### LXC layer
+**Auth**: Bearer token (optional in dev mode; can be bypassed from localhost).
 
-* Images:
-  * Base images: ubuntu:22.04 or ubuntu:24.04
-* Declarative Profiles: /{use-case}/{tools}/{agents}/
-* Profiles Examples:
-  * /dev/python+rocm/copilot/
-  * /dev/clang:riscv+vllm/claude/
-  * /dev/node+electron/claude/
-  * /genai/comfyui//
-  * /model/blender//
-* Profile responsibilities:
-  * Resource limits (CPU, RAM)
-  * GPU passthrough (ROCm/NVIDIA)
-  * Network config (bridged or NAT)
-  * Storage config:
-    * Root filesystem
-    * Optional shared /models mount
-    * Optional shared /data mount
-  * Cloud-init user-data for deterministic provisioning
+### Profile Registry & Resolver (`app/profiles/`)
 
-### Per-container layout
+**Registry** (`registry.py`):
+- Loads YAML files from `lxc/profiles/` directory tree
+- Parses into `ProfileDefinition` Pydantic models
+- Maps `category/name[:subprofile]` → metadata (description, dependencies, LXD config, cloud-init script path)
 
-Inside each container:
-* /workspace — primary working directory (mounted volume or container-local)
-* /opt/tools — installed dev tools and CLIs
-* /models — optional shared read-only model cache from host
-* /etc/dev-orchestrator/metadata.json — environment metadata (env type, version, etc.)
+**Profile YAML format**:
+```yaml
+name: tool/python
+description: Python 3.11 and uv tooling
+category: tool
+depends:
+  - service/base
+lxd:
+  config:
+    limits.cpu: "2"
+  devices: {}
+cloud_init: lxc/cloud-init/tool/python.sh
+```
 
-### GPU passthrough
+**Resolver** (`resolver.py`):
+- Parses profile string: `/{use-case}/{tools}/{agents}/{services}/`
+  - e.g., `/dev/python:rocm+clang/claude+copilot/rocm-gpu+vllm/`
+  - Empty segment means "skip" (e.g., `//` skips agents)
+- Returns list of `category/name[:sub]` tokens
+- Performs **depth-first, topological-sort resolution** on dependencies
+- Detects and reports cycles
+- Returns **ordered profile list** respecting all transitive deps
 
-* ROCm:
-  * Host: ROCm drivers installed
-  * LXC: devices section mapping GPU devices
-  * Profiles: rocm-gpu profile that can be combined with others
-* NVIDIA:
-  * Host: NVIDIA drivers + nvidia-container-runtime style setup
-  * LXC: nvidia.runtime config or explicit device mappings
+**Example resolution**:
+```
+Input:  /dev/python:rocm/claude/rocm-gpu/
+Tokens: [use-case/dev, tool/python:rocm, agent/claude, service/rocm-gpu]
+↓ (after resolver.resolve())
+Output: [
+  service/base,           # dep of dev
+  service/rocm-gpu,       # requested
+  tool/python,            # requested (no rocm sub)
+  tool/python:rocm,       # requested sub
+  agent/claude,           # requested
+  use-case/dev            # requested
+]
+```
 
-### Networking
+### Cloud-Init Builder (`app/lxd/cloud_init.py`)
 
-* LXD bridge (e.g., lxdbr0) for containers
-* Orchestrator backend can:
-  * Talk to LXD via Unix socket
-  * Expose container services via:
-  * Reverse proxy routes (e.g., /containers/<name>/code)
-  * Or port-forwarding from host to container
+- Reads shell fragments from disk (one per profile, under `lxc/cloud-init/`)
+- For each profile in the resolved list, extracts comments and non-empty commands
+- **Deduplicates** commands from the same profile (seen set)
+- **Merges** into a single cloud-config YAML document:
+  ```yaml
+  #cloud-config
+  package_update: true
+  package_upgrade: false
+  write_files:
+    - path: /etc/dev-orchestrator/metadata.json
+      content: |
+        { "profile_string": "...", "resolved_profiles": [...], "created_at": "..." }
+  runcmd:
+    - mkdir -p /workspace /models /data
+    - apt-get update
+    - apt-get install -y python3
+    - python3 -m pip install --upgrade uv==0.6.10
+    # ... (rocm, agents, etc.)
+  ```
+- **Respects ordering**: fragments applied in resolved profile order
 
-### Security boundaries
+### LXD Service (`app/lxd/containers.py`)
 
-* LXC isolation (namespaces, cgroups, AppArmor)
-* No host filesystem mounts by default except:
-  * Optional read-only /models
-  * Optional read-only /data
-* API auth:
-  * Local-only access (home LAN/VPN)
-  * Optional user accounts with JWT or simple session auth
-* No secrets baked into images; injected at runtime via:
-  * Environment variables
-  * LXC config keys
+**Design**: Async wrapper around `pylxd` client to avoid blocking FastAPI event loop.
 
-Orchestrator secret store
+```python
+async def create_container(name, profiles, user_data, config):
+    # 1. Build LXD container definition
+    # 2. Call pylxd in executor (non-blocking)
+    # 3. Start container
+    
+async def get_status(name):
+    # 1. Fetch container from LXD
+    # 2. Return status string (running, stopped, error, etc.)
+```
+
+**No real GPU/device passthrough yet** in MVP — profiles define the config, but actual passthrough happens when profiles are applied to real LXD.
+
+### JSON Store (`app/store/json_store.py`)
+
+**Why not SQLite?**
+At home-server scale (realistic max: tens to low-hundreds of containers):
+- No relational queries needed
+- Simple flat collection of metadata
+- Human-readable and git-friendly
+- Trivially backed up with `cp`
+
+**Schema**:
+```json
+{
+  "myenv": {
+    "name": "myenv",
+    "profile_string": "/dev/python:rocm/claude/rocm-gpu/",
+    "resolved_profiles": ["service/base", "service/rocm-gpu", "tool/python", "tool/python:rocm", "agent/claude"],
+    "ephemeral": false,
+    "gpu_enabled": true,
+    "created_at": "2026-04-30T00:00:00Z",
+    "last_used": null,
+    "status": "stopped",
+    "workspace_path": "/srv/yetaos/workspaces/myenv"
+  }
+}
+```
+
+**Atomicity**: Writes to `.tmp` file, then `os.replace()` to prevent corruption on crash.  
+**Concurrency**: `threading.Lock` (sufficient for single Uvicorn worker).
+
+### Configuration (`app/config.py`)
+
+Pydantic `Settings` from `.env`:
+```dotenv
+YETAOS_LXD_SOCKET=/var/snap/lxd/common/lxd/unix.socket
+YETAOS_STORE_PATH=/tmp/yetaos/containers.json
+YETAOS_PROFILES_DIR=../lxc/profiles
+YETAOS_CLOUD_INIT_DIR=../lxc/cloud-init
+YETAOS_WORKSPACES_DIR=/srv/yetaos/workspaces
+YETAOS_SECRETS_DIR=/srv/yetaos/secrets
+YETAOS_API_KEY=change-me          # or empty for local-only mode
+YETAOS_HOST=0.0.0.0
+YETAOS_PORT=8000
+YETAOS_LOG_LEVEL=info
+```
+
+---
+
+## Frontend: HTMX + Alpine.js (Minimal, no build step)
+
+**Templates** (`app/templates/`):
+- `base.html` — Layout, navigation
+- `index.html` — Dashboard (container list, polling)
+- `create.html` — Form for new environment (TBD)
+- `container.html` — Detail page (TBD)
+
+**Static assets** (`app/static/`):
+- HTMX 2.x (via CDN)
+- Alpine.js 3.x (via CDN)
+- Pico.css or minimal custom styles
+
+**Features** (MVP scope):
+- Poll container status every 10 seconds (HTMX)
+- Show logs from cloud-init-output.log (SSE, TBD)
+- Direct links to `/containers/{name}/shell` and `/containers/{name}/code` (proxied)
+
+---
+
+## LXC Profiles & Cloud-Init
+
+### Implemented profiles
+
+**Service profiles** (`service/`):
+- `base.yaml` — Base Ubuntu 24.04, common packages, mounts
+- `rocm-gpu.yaml` — AMD GPU device passthrough (KFD, DRI)
+
+**Tool profiles** (`tool/`):
+- `python.yaml` — Python 3.11, uv
+- `python:rocm.yaml` — Subprofile, PyTorch ROCm wheels
+
+**Use-case profiles** (`use-case/`):
+- `dev.yaml` — Generic dev container (base + shell + VS Code Server)
+
+### Cloud-init fragments
+
+All idempotent, non-interactive, with pinned package versions:
+
+**`service/base.sh`**:
+```bash
+set -e
+mkdir -p /workspace /models /data
+apt-get update
+apt-get install -y curl git ca-certificates sudo htop jq build-essential
+```
+
+**`tool/python.sh`**:
+```bash
+set -e
+apt-get update
+apt-get install -y software-properties-common
+add-apt-repository -y ppa:deadsnakes/ppa
+apt-get update
+apt-get install -y python3.11 python3.11-venv python3.11-dev
+python3 -m pip install --upgrade uv==0.6.10
+```
+
+**`tool/python-rocm.sh`**:
+```bash
+set -e
+python3 -m pip install torch==2.3.0+rocm6.1 --index-url https://download.pytorch.org/whl/rocm6.1
+```
+
+---
+
+## Deployment
+
+### Host setup (`scripts/host-setup.sh`)
+- Creates `yetaos` system user
+- Adds to `lxd`, `video`, `render` groups
+- Creates `/srv/yetaos/{db,models,data,workspaces,secrets}`
+
+### Installation (`scripts/install.sh`)
+- Runs host setup
+- Copies `.env.example` to `/etc/yetaos/.env`
+- Installs via `uv` to `/opt/yetaos/venv`
+- Copies systemd service & Caddy config
+- Enables services
+
+### Systemd service (`deploy/yetaos-backend.service`)
+```ini
+[Unit]
+Description=YETAOS Dev Orchestrator Backend
+After=network.target lxd.service
+
+[Service]
+User=yetaos
+Group=yetaos
+EnvironmentFile=/etc/yetaos/.env
+ExecStart=/opt/yetaos/venv/bin/uvicorn app.main:app --workers 1 ...
+
+[Install]
+WantedBy=multi-user.target
+```
+
+### Reverse proxy (`deploy/Caddyfile`)
+```caddy
+dev-orchestrator.local {
+    tls internal
+    reverse_proxy /api/* localhost:8000
+    handle /* { reverse_proxy localhost:8000 }
+    # Proxied shell & code-server per container (TBD)
+}
+```
+
+---
+
+## Testing
+
+**Unit tests** (`backend/tests/`):
+- `test_resolver.py` — Profile string parsing, dependency resolution, cycles
+- `test_cloud_init.py` — Fragment merging, ordering
+- `test_store.py` — JSON persistence, atomicity
+- `test_api.py` — HTTP endpoints (mocked LXD client)
+
+**Mocked LXD**: `FakeClient` in `conftest.py` provides in-memory container simulation.  
+**No real containers touched** during tests.
+
+**CI** (`.github/workflows/ci.yml`):
+- Ruff lint
+- mypy type-check (strict mode)
+- pytest (all groups)
+
+---
+
+## Security
+
+- LXD socket accessible only by `yetaos` user
+- API key stored in `/etc/yetaos/.env` (mode 0600)
+- Secrets injected to tmpfs at container start, never persisted
+- No container runs with `security.privileged = true`
+- Profiles define minimal allow-rules (AppArmor)
+
+---
+
+## Next phases
+
+**Milestone 3** (Frontend + Shell):
+- Build create/list/detail UI templates
+- Integrate ttyd/code-server proxying
+- Add log streaming endpoint (SSE)
+
+**Milestone 4** (Complete profiles):
+- Add all tool/agent/service profiles from plan
+- Add vLLM, ComfyUI, Blender, Electron, etc.
+
+**Milestone 5** (Ops):
+- Idle shutdown background task
+- E2E testing on real LXD host
+- Installation guide
+
+See [docs/plan.md](../docs/plan.md) for the full roadmap.

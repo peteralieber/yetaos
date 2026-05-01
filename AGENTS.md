@@ -40,6 +40,9 @@ The goal is to provide a **deterministic, reproducible, and privacy-respecting**
     - Adding a new profile
     - Adding a new cloud-init script
     - Registering it in a single configuration file
+- **Git Commits**:
+  - Make commits sensibly often, after each task, todo, or component implementation. 
+  - Make each commit in a working/compiling state if possible
 
 ## Tasks Copilot can help with
 
@@ -56,6 +59,9 @@ The goal is to provide a **deterministic, reproducible, and privacy-respecting**
 - Writing documentation:
   - Environment template definitions
   - Example workflows
+
+## Tools to use
+- Use 'uv' to manage the project, dependencies, and running scripts
 
 ## Things to avoid
 

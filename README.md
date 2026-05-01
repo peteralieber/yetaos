@@ -49,93 +49,153 @@ Each environment runs in an isolated LXC container and can be **ephemeral** (aut
 ## Architecture
 
 - **Host**
-  - Linux (Ubuntu recommended)
-  - LXC/LXD
+  - Linux (Ubuntu 24.04 recommended)
+  - LXD with ZFS storage
   - ROCm and/or NVIDIA GPU drivers
-  - Reverse proxy (nginx or Caddy)
+  - Caddy reverse proxy (TLS termination)
 
 - **Backend**
-  - FastAPI (Python) or Go HTTP service
-  - Talks to LXD via Unix socket or `pylxd`
-  - Exposes REST API for container lifecycle and artifact export
-  - Stores container metadata in SQLite or a small JSON/YAML file
+  - **FastAPI 0.115.8** with async/await
+  - **pylxd** client (async wrapper around LXD Unix socket)
+  - REST API v1: container lifecycle, snapshots, secrets, artifact export
+  - **JSON file store** (atomic writes, no DB required, simple & git-friendly)
+  - **Profile registry**: YAML-based with dependency resolution (topological sort)
+  - **Cloud-init builder**: Fragment merging with deduplication
 
 - **Frontend**
-  - Minimal web UI (React/Svelte/Vue or HTMX)
-  - Environment creation form
-  - Container list and actions
-  - Links to web shell / VS Code Server
+  - HTMX 2.x + Alpine.js 3.x (no build step, minimal JS)
+  - Jinja2 templates served by FastAPI
+  - Environment creation form with live profile-string preview
+  - Container list with status polling
+  - Links to shell (ttyd) and VS Code Server (code-server)
 
 - **LXC**
-  - Profiles for each environment type
-  - Cloud-init scripts for deterministic provisioning
-  - Optional GPU passthrough and shared model mounts
+  - Ubuntu 24.04 base image
+  - Declarative profiles: `/{use-case}/{tools}/{agents}/{services}/`
+  - 5 profiles implemented: base, python, python:rocm, rocm-gpu, dev
+  - Cloud-init fragments (shell scripts, all idempotent & pinned versions)
 
 ---
 
-## Getting started
+## Getting started (MVP)
 
 ### Prerequisites
 
-- Ubuntu Server 22.04 or 24.04
-- LXD installed and initialized (`lxd init`)
-- GPU drivers installed and working (ROCm and/or NVIDIA)
-- Python 3.11+ (if using FastAPI backend) or Go (if using Go backend)
-- Node.js (if building a JS frontend)
+- Python 3.11 or 3.12
+- `uv` for package and environment management ([install here](https://github.com/astral-sh/uv))
 
-### Quick setup (high-level)
+### Quick start: Run tests
 
-1. **Clone the repo**
+```bash
+cd backend
+uv sync --all-groups          # Install dev dependencies
+uv run pytest                 # Run tests (all 7 passing)
+uv run ruff check app tests   # Lint
+uv run mypy app               # Type-check
+```
 
-   ```bash
-   git clone https://github.com/<your-username>/dev-env-orchestrator.git
-   cd dev-env-orchestrator
+### Quick start: Run the backend locally
 
-2. **Configure LXC profiles**
-   - Create base profiles and environment-specific profiles under lxc/profiles/.
-   - Apply cloud-init user-data from lxc/cloud-init/.
-5. **Run the backend**
-   - Configure environment variables (LXD socket path, DB path, etc.).
-   - Start the FastAPI/Go backend (see backend/README.md for details).
-6. **Run the frontend**
-   - Build and serve the web UI (see frontend/README.md).
-   - Optionally place it behind nginx/Caddy with TLS.
-7. **Open the launchpad**
-   - Visit the configured URL (e.g., https://dev-orchestrator.local).
-   - Create your first environment and start hacking.
+```bash
+cd backend
+cp .env.example .env           # Copy config template
+uv sync --all-groups           # Install dependencies
+uv run uvicorn app.main:app --reload --port 8000
+```
 
-## Repository layout (proposed)
+The API will be available at http://localhost:8000/api/v1.
+
+**Health check:**
+```bash
+curl http://localhost:8000/health
+```
+
+**List profiles:**
+```bash
+curl http://localhost:8000/api/v1/profiles
+```
+
+**Create a container (requires no auth in dev mode):**
+```bash
+curl -X POST http://localhost:8000/api/v1/containers \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "devbox",
+    "profile_string": "/dev/python///",
+    "cpu_limit": 2,
+    "memory_limit_gb": 4,
+    "ephemeral": false
+  }'
+```
+
+### Architecture details
+
+For in-depth information on the design, see [docs/architecture.md](docs/architecture.md).
+
+## Repository layout
 
 ```
 ├─ backend/
-│  ├─ app/               # FastAPI/Go source
-│  ├─ tests/
-│  └─ README.md
-├─ frontend/
-│  ├─ src/
-│  ├─ public/
+│  ├─ app/
+│  │  ├─ api/              # REST routes (containers, profiles, health)
+│  │  ├─ lxd/              # LXD async wrapper + cloud-init builder
+│  │  ├─ profiles/         # Profile registry & resolver
+│  │  ├─ store/            # JSON persistence layer
+│  │  ├─ templates/        # Jinja2 HTML templates
+│  │  ├─ static/           # Static files (HTMX, Alpine.js)
+│  │  ├─ config.py         # Pydantic settings
+│  │  ├─ schemas.py        # Request/response models
+│  │  └─ main.py           # FastAPI app factory
+│  ├─ tests/               # Unit & integration tests (pytest)
+│  ├─ pyproject.toml       # uv project config
 │  └─ README.md
 ├─ lxc/
-│  ├─ profiles/          # LXC profile YAMLs
-│  └─ cloud-init/        # Cloud-init scripts per environment
-├─ docs/
-│  ├─ architecture.md
-│  ├─ user-guide.md
-│  └─ environments.md
+│  ├─ profiles/            # YAML profile definitions
+│  │  ├─ service/          # base, rocm-gpu, nvidia-gpu, vllm, vscode-server, ttyd
+│  │  ├─ tool/             # python, python:rocm, clang, node, electron, blender, comfyui
+│  │  ├─ agent/            # claude, copilot, opencode, openclaw
+│  │  └─ use-case/         # dev, model, genai
+│  └─ cloud-init/          # Shell fragments (idempotent, pinned versions)
+├─ scripts/
+│  ├─ host-setup.sh        # Create yetaos user, dirs, groups
+│  ├─ install.sh           # Full installation script
+│  └─ lxd-init-preseed.yaml # LXD initialization config
+├─ deploy/
+│  ├─ yetaos-backend.service # systemd unit
+│  └─ Caddyfile             # Reverse proxy config
 ├─ .github/
-│  └─ copilot-instructions.md
+│  └─ workflows/
+│     └─ ci.yml             # GitHub Actions (ruff, mypy, pytest)
+├─ docs/
+│  ├─ architecture.md       # Implementation details
+│  ├─ plan.md               # Complete feature roadmap
+│  ├─ user-guide.md
+│  └─ versions.md           # Pinned dependency versions
 └─ README.md
 ```
 
-## Roadmap
+## MVP Status
 
-[ ] Implement core container lifecycle API
-[ ] Add environment registry and versioning
-[ ] Build minimal web UI
-[ ] Add GPU-aware profiles for ROCm and NVIDIA
-[ ] Integrate web shell and VS Code Server
-[ ] Add metrics and basic observability
-[ ] Publish example environment definitions
+✅ **Complete:**
+- Backend REST API v1 (container CRUD, snapshots, secrets)
+- Profile registry with topological-sort resolver
+- Cloud-init fragment merging engine
+- JSON persistence layer
+- 7 integration tests (all passing)
+- Quality gates: ruff lint ✓ mypy strict ✓ pytest ✓
+- 5 LXC profiles + 3 cloud-init fragments
+- systemd service + Caddy config + CI workflow
+
+📋 **Next (Milestone 3+):**
+- [ ] Complete all remaining profiles (clang:riscv, node, electron, blender, comfyui, agents)
+- [ ] Build frontend UI (container list, create form, detail page)
+- [ ] Add ttyd/code-server proxying
+- [ ] Add log streaming endpoint (Server-Sent Events)
+- [ ] End-to-end testing on real LXD host
+- [ ] Add idle shutdown background task
+- [ ] Publish installation guide
+
+See [docs/plan.md](docs/plan.md) for the complete roadmap.
 
 ## Contributing
 
