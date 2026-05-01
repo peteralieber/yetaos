@@ -238,9 +238,15 @@ YETAOS_LOG_LEVEL=info
 **Tool profiles** (`tool/`):
 - `python.yaml` — Python 3.11, uv
 - `python:rocm.yaml` — Subprofile, PyTorch ROCm wheels
+- `clang-riscv.yaml` — Clang 18 + RISC-V cross-compilation toolchain
+- `node.yaml` — Node.js 20 LTS (via NodeSource)
+- `electron.yaml` — Electron framework + display libs (depends on `tool/node`)
 
 **Use-case profiles** (`use-case/`):
-- `dev.yaml` — Generic dev container (base + shell + VS Code Server)
+- `dev.yaml` — Generic dev container (base + shell)
+- `blender.yaml` — Blender 4.1 LTS
+- `comfyui.yaml` — ComfyUI stable-diffusion node graph (depends on `tool/python:rocm`)
+- `agents.yaml` — AI CLI agents: Claude CLI + GitHub Copilot CLI (depends on `tool/node`)
 
 ### Cloud-init fragments
 
@@ -350,9 +356,10 @@ dev-orchestrator.local {
 - Integrate ttyd/code-server proxying
 - Add log streaming endpoint (SSE)
 
-**Milestone 4** (Complete profiles):
-- Add all tool/agent/service profiles from plan
-- Add vLLM, ComfyUI, Blender, Electron, etc.
+**Milestone 4** (Complete profiles — ✅ Done):
+- Added `tool/clang:riscv`, `tool/node`, `tool/electron`
+- Added `use-case/blender`, `use-case/comfyui`, `use-case/agents`
+- 35 tests all passing
 
 **Milestone 5** (Ops):
 - Idle shutdown background task
