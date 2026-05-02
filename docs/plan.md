@@ -847,7 +847,7 @@ Committed to repo; applied via `lxd init --preseed < scripts/lxd-init-preseed.ya
 - [ ] `app/templates/container.html` — full detail page
 - [ ] `lxc/profiles/service/ttyd.yaml` + init script fragment
 - [ ] `lxc/profiles/service/vscode-server.yaml` + init script fragment
-- [ ] Caddy config for shell and code-server proxying
+- [x] Caddy config for shell and code-server proxying
 - [ ] Export endpoint + frontend download button
 - [x] Snapshot create/list/restore API
 
