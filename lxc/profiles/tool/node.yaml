@@ -1,0 +1,9 @@
+name: tool/node
+description: Node.js LTS via NodeSource
+category: tool
+depends:
+  - service/base
+lxd:
+  config: {}
+  devices: {}
+cloud_init: lxc/cloud-init/tool/node.sh

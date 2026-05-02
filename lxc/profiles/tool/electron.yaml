@@ -1,0 +1,12 @@
+name: tool/electron
+description: Electron framework and display dependencies
+category: tool
+depends:
+  - tool/node
+lxd:
+  config: {}
+  devices:
+    gpu:
+      type: gpu
+      pci: ""
+cloud_init: lxc/cloud-init/tool/electron.sh
