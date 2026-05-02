@@ -1,0 +1,20 @@
+{% if records %}
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Profile</th>
+      <th>Status</th>
+      <th>Last used</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for container in records %}
+      {% include "fragments/container_row.html" %}
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted" style="margin: 0">No containers yet. Create one to begin.</p>
+{% endif %}

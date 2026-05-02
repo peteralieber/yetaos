@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel" x-data="profileBuilder()">
+  <h1 style="margin-top: 0">Create Environment</h1>
+  <p class="muted">Compose a profile string from declarative profile categories, then launch the container.</p>
+
+  <form
+    hx-post="/fragments/containers/create"
+    hx-target="#create-result"
+    hx-swap="innerHTML"
+    style="margin-top: 14px"
+  >
+    <div class="field-grid">
+      <label>
+        Container Name
+        <input type="text" name="name" placeholder="devbox" required pattern="[a-z][a-z0-9-]*" maxlength="63" />
+      </label>
+      <label>
+        Use Case
+        <select x-model="useCase" @change="recompute()">
+          {% for item in use_cases %}
+          <option value="{{ item.slug }}">{{ item.label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    </div>
+
+    <div class="field-grid" style="margin-top: 12px">
+      <label>
+        Tools
+        <select x-model="tools" multiple size="6" @change="recompute()">
+          {% for item in tools %}
+          <option value="{{ item.slug }}">{{ item.label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        Agents
+        <select x-model="agents" multiple size="6" @change="recompute()">
+          {% for item in agents %}
+          <option value="{{ item.slug }}">{{ item.label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    </div>
+
+    <div style="margin-top: 12px">
+      <label>
+        Services
+        <select x-model="services" multiple size="5" @change="recompute()">
+          {% for item in services %}
+          <option value="{{ item.slug }}">{{ item.label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    </div>
+
+    <div class="field-grid" style="margin-top: 12px">
+      <label>
+        Profile String
+        <input type="text" name="profile_string" x-model="profileString" readonly />
+      </label>
+      <label>
+        Secrets (KEY=VALUE)
+        <textarea name="secrets_text" rows="3" placeholder="GITHUB_TOKEN=...\nHF_TOKEN=..."></textarea>
+      </label>
+    </div>
+
+    <div class="field-grid" style="margin-top: 12px">
+      <label>
+        CPU Limit
+        <input type="number" name="cpu_limit" min="1" max="64" value="2" required />
+      </label>
+      <label>
+        Memory Limit (GB)
+        <input type="number" name="memory_limit_gb" min="1" max="256" value="4" required />
+      </label>
+    </div>
+
+    <div class="actions" style="margin-top: 12px">
+      <label><input type="checkbox" name="ephemeral" /> Ephemeral container</label>
+      <label><input type="checkbox" name="enable_gpu" /> Enable GPU profile compatibility</label>
+    </div>
+
+    <div class="actions" style="margin-top: 14px">
+      <button type="submit" class="button primary">Create Container</button>
+      <a class="button" href="/">Cancel</a>
+    </div>
+  </form>
+
+  <div id="create-result" style="margin-top: 12px"></div>
+</section>
+
+<script>
+  function profileBuilder() {
+    return {
+      useCase: "{{ use_cases[0].slug if use_cases else 'dev' }}",
+      tools: [],
+      agents: [],
+      services: [],
+      profileString: "",
+      recompute() {
+        const segments = [this.useCase, ...this.tools, ...this.agents, ...this.services].filter(Boolean);
+        this.profileString = "/" + segments.join("/") + "///";
+      },
+      init() {
+        this.recompute();
+      },
+    };
+  }
+</script>
+{% endblock %}

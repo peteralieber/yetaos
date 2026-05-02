@@ -188,7 +188,7 @@ For in-depth information on the design, see [docs/architecture.md](docs/architec
 
 📋 **Next (Milestone 3+):**
 - [ ] Complete all remaining profiles (clang:riscv, node, electron, blender, comfyui, agents)
-- [ ] Build frontend UI (container list, create form, detail page)
+- [x] Build frontend UI (container list, create form, detail page)
 - [ ] Add ttyd/code-server proxying
 - [ ] Add log streaming endpoint (Server-Sent Events)
 - [ ] End-to-end testing on real LXD host

@@ -1,0 +1,38 @@
+<tr id="container-row-{{ container.name }}">
+  <td>
+    <a href="/containers/{{ container.name }}">{{ container.name }}</a>
+  </td>
+  <td>
+    <div>{{ container.profile_string }}</div>
+    <div class="muted">{{ container.resolved_profiles | join(", ") }}</div>
+  </td>
+  <td>
+    {% include "fragments/status_badge.html" %}
+  </td>
+  <td>{{ container.last_used or "never" }}</td>
+  <td>
+    <div class="actions">
+      <button
+        class="button"
+        hx-post="/fragments/containers/{{ container.name }}/start"
+        hx-target="#container-row-{{ container.name }}"
+        hx-swap="outerHTML"
+      >Start</button>
+      <button
+        class="button warn"
+        hx-post="/fragments/containers/{{ container.name }}/stop"
+        hx-target="#container-row-{{ container.name }}"
+        hx-swap="outerHTML"
+      >Stop</button>
+      <button
+        class="button bad"
+        hx-delete="/fragments/containers/{{ container.name }}"
+        hx-target="#container-row-{{ container.name }}"
+        hx-swap="outerHTML"
+        hx-confirm="Delete container {{ container.name }}?"
+      >Delete</button>
+      <a class="button" href="/containers/{{ container.name }}/shell" target="_blank" rel="noreferrer">Shell</a>
+      <a class="button" href="/containers/{{ container.name }}/code" target="_blank" rel="noreferrer">Code</a>
+    </div>
+  </td>
+</tr>
