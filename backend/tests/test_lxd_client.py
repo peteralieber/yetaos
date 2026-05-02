@@ -1,5 +1,6 @@
 from app.lxd.client import get_pylxd_client
 from app.lxd.containers import LXDContainerService
+from app.lxd.mock import get_mock_lxd_service
 
 
 def test_get_pylxd_client_passes_raw_socket_path(monkeypatch) -> None:
@@ -28,3 +29,10 @@ def test_lxd_service_is_lazy_until_first_operation() -> None:
     assert calls == []
     service._get_client()
     assert calls == ["/tmp/missing.sock"]
+
+
+def test_mock_lxd_service_is_cached() -> None:
+    first = get_mock_lxd_service()
+    second = get_mock_lxd_service()
+
+    assert first is second

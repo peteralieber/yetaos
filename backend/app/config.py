@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     workspaces_dir: Path = Field(default=Path("/tmp/yetaos/workspaces"), alias="YETAOS_WORKSPACES_DIR")
     secrets_dir: Path = Field(default=Path("/tmp/yetaos/secrets"), alias="YETAOS_SECRETS_DIR")
     models_dir: Path = Field(default=Path("/tmp/yetaos/models"), alias="YETAOS_MODELS_DIR")
+    mock_lxd: bool = Field(default=False, alias="YETAOS_MOCK_LXD")
     api_key: str | None = Field(default=None, alias="YETAOS_API_KEY")
     host: str = Field(default="0.0.0.0", alias="YETAOS_HOST")
     port: int = Field(default=8000, alias="YETAOS_PORT")

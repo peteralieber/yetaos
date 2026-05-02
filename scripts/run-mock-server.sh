@@ -10,6 +10,7 @@ PORT="${YETAOS_PORT:-8000}"
 mkdir -p "${DATA_ROOT}" "${DATA_ROOT}/workspaces" "${DATA_ROOT}/secrets" "${DATA_ROOT}/models"
 
 # Demo mode defaults: local temp data paths and auth disabled unless explicitly set.
+export YETAOS_MOCK_LXD="${YETAOS_MOCK_LXD:-1}"
 export YETAOS_API_KEY="${YETAOS_API_KEY:-}"
 export YETAOS_STORE_PATH="${YETAOS_STORE_PATH:-${DATA_ROOT}/containers.json}"
 export YETAOS_WORKSPACES_DIR="${YETAOS_WORKSPACES_DIR:-${DATA_ROOT}/workspaces}"
