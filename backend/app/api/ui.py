@@ -78,13 +78,7 @@ async def dashboard(
     lxd: LXDContainerService = Depends(get_lxd_service),
 ) -> HTMLResponse:
     records = await _all_records(store, lxd)
-    return templates.TemplateResponse(
-        "index.html",
-        {
-            "request": request,
-            "records": records,
-        },
-    )
+    return templates.TemplateResponse(request, "index.html", {"records": records})
 
 
 @router.get("/create", response_class=HTMLResponse)
@@ -97,16 +91,12 @@ async def create_page(
     agents = _profile_options(registry, "agent")
     services = _profile_options(registry, "service")
 
-    return templates.TemplateResponse(
-        "create.html",
-        {
-            "request": request,
-            "use_cases": use_cases,
-            "tools": tools,
-            "agents": agents,
-            "services": services,
-        },
-    )
+    return templates.TemplateResponse(request, "create.html", {
+        "use_cases": use_cases,
+        "tools": tools,
+        "agents": agents,
+        "services": services,
+    })
 
 
 @router.get("/containers/{name}", response_class=HTMLResponse)
@@ -123,14 +113,7 @@ async def container_detail_page(
     snapshots = await lxd.list_snapshots(name)
     record = await _with_status(record, lxd, store)
 
-    return templates.TemplateResponse(
-        "container.html",
-        {
-            "request": request,
-            "container": record,
-            "snapshots": snapshots,
-        },
-    )
+    return templates.TemplateResponse(request, "container.html", {"container": record, "snapshots": snapshots})
 
 
 @router.get("/fragments/containers", response_class=HTMLResponse)
@@ -140,10 +123,7 @@ async def containers_fragment(
     lxd: LXDContainerService = Depends(get_lxd_service),
 ) -> HTMLResponse:
     records = await _all_records(store, lxd)
-    return templates.TemplateResponse(
-        "fragments/container_list.html",
-        {"request": request, "records": records},
-    )
+    return templates.TemplateResponse(request, "fragments/container_list.html", {"records": records})
 
 
 @router.post("/fragments/containers/create")
@@ -162,12 +142,9 @@ async def create_container_from_form(
 ) -> Response:
     if store.get(name):
         return templates.TemplateResponse(
+            request,
             "fragments/create_result.html",
-            {
-                "request": request,
-                "success": False,
-                "message": "Container already exists.",
-            },
+            {"success": False, "message": "Container already exists."},
             status_code=status.HTTP_409_CONFLICT,
         )
 
@@ -185,12 +162,9 @@ async def create_container_from_form(
     except ValidationError as exc:
         message = "; ".join(err["msg"] for err in exc.errors())
         return templates.TemplateResponse(
+            request,
             "fragments/create_result.html",
-            {
-                "request": request,
-                "success": False,
-                "message": message,
-            },
+            {"success": False, "message": message},
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         )
 
@@ -199,12 +173,9 @@ async def create_container_from_form(
         resolved_profiles = resolver.resolve_from_string(body.profile_string)
     except ValueError as exc:
         return templates.TemplateResponse(
+            request,
             "fragments/create_result.html",
-            {
-                "request": request,
-                "success": False,
-                "message": str(exc),
-            },
+            {"success": False, "message": str(exc)},
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         )
 
@@ -259,13 +230,7 @@ async def start_container_from_ui(
     record.last_used = datetime.now(UTC)
     store.upsert(record)
 
-    return templates.TemplateResponse(
-        "fragments/container_row.html",
-        {
-            "request": request,
-            "container": record,
-        },
-    )
+    return templates.TemplateResponse(request, "fragments/container_row.html", {"container": record})
 
 
 @router.post("/fragments/containers/{name}/stop", response_class=HTMLResponse)
@@ -288,13 +253,7 @@ async def stop_container_from_ui(
         store.delete(name)
         return HTMLResponse("")
 
-    return templates.TemplateResponse(
-        "fragments/container_row.html",
-        {
-            "request": request,
-            "container": record,
-        },
-    )
+    return templates.TemplateResponse(request, "fragments/container_row.html", {"container": record})
 
 
 @router.delete("/fragments/containers/{name}")
@@ -324,13 +283,7 @@ async def container_status_fragment(
         raise HTTPException(status_code=404, detail="container not found")
 
     record = await _with_status(record, lxd, store)
-    return templates.TemplateResponse(
-        "fragments/status_badge.html",
-        {
-            "request": request,
-            "status": record.status,
-        },
-    )
+    return templates.TemplateResponse(request, "fragments/status_badge.html", {"status": record.status})
 
 
 @router.get("/fragments/containers/{name}/snapshots", response_class=HTMLResponse)
@@ -344,14 +297,7 @@ async def snapshots_fragment(
         raise HTTPException(status_code=404, detail="container not found")
 
     snapshots = await lxd.list_snapshots(name)
-    return templates.TemplateResponse(
-        "fragments/snapshot_list.html",
-        {
-            "request": request,
-            "name": name,
-            "snapshots": snapshots,
-        },
-    )
+    return templates.TemplateResponse(request, "fragments/snapshot_list.html", {"name": name, "snapshots": snapshots})
 
 
 @router.post("/fragments/containers/{name}/snapshots", response_class=HTMLResponse)
@@ -367,14 +313,7 @@ async def create_snapshot_from_ui(
 
     await lxd.create_snapshot(name, snapshot_name)
     snapshots = await lxd.list_snapshots(name)
-    return templates.TemplateResponse(
-        "fragments/snapshot_list.html",
-        {
-            "request": request,
-            "name": name,
-            "snapshots": snapshots,
-        },
-    )
+    return templates.TemplateResponse(request, "fragments/snapshot_list.html", {"name": name, "snapshots": snapshots})
 
 
 @router.post("/fragments/containers/{name}/snapshots/{snapshot}/restore")
