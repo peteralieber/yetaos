@@ -1,8 +1,23 @@
 {% extends "base.html" %}
 {% block content %}
-<h1>YETAOS MVP</h1>
-<p>Backend API is available at /api/v1.</p>
-<div class="card">
-  <p>Use the API endpoints to manage containers. Frontend interactions are intentionally lightweight in this MVP.</p>
-</div>
+<section class="card">
+  <div style="display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; flex-wrap: wrap;">
+    <div>
+      <h1 style="margin: 0 0 6px">Containers</h1>
+      <p style="margin: 0; color: #426077">Status refreshes every 10 seconds.</p>
+    </div>
+    <a href="/create">Create Environment</a>
+  </div>
+</section>
+
+<section class="card" style="margin-top: 12px;">
+  <div
+    id="container-list"
+    hx-get="/fragments/containers"
+    hx-trigger="load, every 10s"
+    hx-swap="innerHTML"
+  >
+    {% include "fragments/container_list.html" %}
+  </div>
+</section>
 {% endblock %}

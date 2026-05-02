@@ -1,0 +1,16 @@
+{% set target_name = name if name is defined else container.name %}
+{% if snapshots %}
+<ul style="padding-left: 18px; margin: 0;">
+  {% for snapshot in snapshots %}
+  <li style="margin: 6px 0; display: flex; gap: 8px; align-items: center;">
+    <span>{{ snapshot }}</span>
+    <button
+      hx-post="/fragments/containers/{{ target_name }}/snapshots/{{ snapshot }}/restore"
+      hx-on::after-request="if (event.detail.successful) htmx.trigger('#status-fragment', 'refresh')"
+    >Restore</button>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p style="margin: 0;">No snapshots yet.</p>
+{% endif %}

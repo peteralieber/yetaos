@@ -1,0 +1,10 @@
+{% set current = status if status is defined else container.status %}
+{% if current == "running" %}
+<span style="display: inline-block; padding: 2px 10px; border-radius: 999px; background: #d8f3dc; color: #1b4332; font-weight: 600;">running</span>
+{% elif current == "stopped" %}
+<span style="display: inline-block; padding: 2px 10px; border-radius: 999px; background: #e9ecef; color: #495057; font-weight: 600;">stopped</span>
+{% elif current == "starting" %}
+<span style="display: inline-block; padding: 2px 10px; border-radius: 999px; background: #fff3bf; color: #7f4f24; font-weight: 600;">starting</span>
+{% else %}
+<span style="display: inline-block; padding: 2px 10px; border-radius: 999px; background: #ffe3e3; color: #9d0208; font-weight: 600;">{{ current }}</span>
+{% endif %}
