@@ -60,3 +60,13 @@ class LXDContainerService:
         container = await self._run(self._client.containers.get, name)
         snapshot = await self._run(container.snapshots.get, snapshot_name)
         await self._run(snapshot.restore, wait=True)
+
+    async def export_workspace(self, name: str) -> bytes:
+        container = await self._run(self._client.containers.get, name)
+        archive_path = "/tmp/yetaos-export.tar.gz"
+        await self._run(container.execute, ["sh", "-lc", f"tar czf {archive_path} -C /workspace ."])
+        payload = await self._run(container.files.get, archive_path)
+        await self._run(container.execute, ["rm", "-f", archive_path])
+        if isinstance(payload, bytes):
+            return payload
+        return str(payload).encode("utf-8")
