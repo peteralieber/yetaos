@@ -1,0 +1,20 @@
+{% if records %}
+<table style="width: 100%; border-collapse: collapse;">
+  <thead>
+    <tr>
+      <th style="text-align: left;">Name</th>
+      <th style="text-align: left;">Profile</th>
+      <th style="text-align: left;">Status</th>
+      <th style="text-align: left;">Last Used</th>
+      <th style="text-align: left;">Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for container in records %}
+      {% include "fragments/container_row.html" %}
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No containers yet. <a href="/create">Create one</a>.</p>
+{% endif %}

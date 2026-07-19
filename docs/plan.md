@@ -838,17 +838,17 @@ Committed to repo; applied via `lxd init --preseed < scripts/lxd-init-preseed.ya
 
 ### Milestone 3 — Frontend MVP
 - [x] `app/templates/base.html`, `index.html` — dashboard placeholder (MVP stub)
-- [ ] `app/templates/create.html` — create form with live profile-string preview
-- [ ] HTMX polling for container status refresh
+- [x] `app/templates/create.html` — create form with live profile-string preview
+- [x] HTMX polling for container status refresh
 - [ ] SSE log stream endpoint + frontend log panel
 - [x] `app/api/profiles.py` — profiles list endpoint (populates create form dropdowns)
 
 ### Milestone 4 — Container detail + shell + VS Code
-- [ ] `app/templates/container.html` — full detail page
-- [ ] `lxc/profiles/service/ttyd.yaml` + init script fragment
-- [ ] `lxc/profiles/service/vscode-server.yaml` + init script fragment
-- [ ] Caddy config for shell and code-server proxying
-- [ ] Export endpoint + frontend download button
+- [x] `app/templates/container.html` — full detail page
+- [x] `lxc/profiles/service/ttyd.yaml` + init script fragment
+- [x] `lxc/profiles/service/vscode-server.yaml` + init script fragment
+- [x] Caddy config for shell and code-server proxying
+- [x] Export endpoint + frontend download button
 - [x] Snapshot create/list/restore API
 
 ### Milestone 5 — All environment templates + secrets

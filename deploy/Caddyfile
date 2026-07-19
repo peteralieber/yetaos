@@ -1,6 +1,20 @@
 dev-orchestrator.local {
     tls internal
 
+    # Proxy browser shell to ttyd running inside the target container.
+    @shell path_regexp shell ^/containers/([^/]+)/shell/?(.*)$
+    handle @shell {
+        rewrite * /{re.shell.2}
+        reverse_proxy {re.shell.1}.lxd:7681
+    }
+
+    # Proxy browser IDE to code-server running inside the target container.
+    @code path_regexp code ^/containers/([^/]+)/code/?(.*)$
+    handle @code {
+        rewrite * /{re.code.2}
+        reverse_proxy {re.code.1}.lxd:8080
+    }
+
     reverse_proxy /api/* localhost:8000
     reverse_proxy /health localhost:8000
     handle /* {

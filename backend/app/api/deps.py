@@ -2,6 +2,7 @@ from fastapi import Depends, Header, HTTPException, Request, status
 
 from app.config import Settings, get_settings
 from app.lxd.containers import LXDContainerService
+from app.lxd.mock import get_mock_lxd_service
 from app.profiles.registry import ProfileRegistry
 from app.store.json_store import JsonStore
 
@@ -15,6 +16,8 @@ def get_registry(settings: Settings = Depends(get_settings)) -> ProfileRegistry:
 
 
 def get_lxd_service(settings: Settings = Depends(get_settings)) -> LXDContainerService:
+    if settings.mock_lxd:
+        return get_mock_lxd_service()
     return LXDContainerService(socket_path=settings.lxd_socket)
 
 

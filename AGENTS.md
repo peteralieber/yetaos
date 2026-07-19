@@ -4,6 +4,21 @@ This repository contains a **Dev Environment Orchestrator** for a home server us
 
 The goal is to provide a **deterministic, reproducible, and privacy-respecting** way to launch curated dev environments (Python+ROCm, Clang+RISC-V, Node+Electron, Blender, ComfyUI, etc.) with AI CLIs like **Claude CLI** and **Copilot CLI**.
 
+## Plan Files
+- **docs/architecture.md**: 
+  - Project Archtecture
+  - Should stay stable, regardless of plan and task completion
+  - Should be updated if during implementation, a critical inconsistency or issue is found
+- **docs/plan.md**:
+  - Project Plan
+  - Should be updated during implementation
+  - Change future tasks if current implementation necessitates the change
+  - Always mark tasks as complete when done
+- **docs/user-guide.md**:
+  - User Guide
+  - Update as new features are implemented
+  - Change when new features or bug fixes change behavior or user experience.
+
 ## Architectural principles
 
 - Prefer **explicit, declarative configuration** over magic.

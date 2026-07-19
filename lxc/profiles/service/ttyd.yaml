@@ -1,0 +1,9 @@
+name: service/ttyd
+description: Browser shell service via ttyd
+category: service
+depends:
+  - service/base
+lxd:
+  config: {}
+  devices: {}
+cloud_init: lxc/cloud-init/service/ttyd.sh

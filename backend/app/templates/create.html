@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card">
+  <h1 style="margin-top: 0">Create Environment</h1>
+  <p style="margin-top: 0; color: #426077">Compose a profile string and launch a container.</p>
+
+  <form
+    hx-post="/fragments/containers/create"
+    hx-target="#create-result"
+    hx-swap="innerHTML"
+  >
+    <div style="display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
+      <label>
+        Name
+        <input name="name" required pattern="[a-z][a-z0-9-]*" maxlength="63" placeholder="devbox" />
+      </label>
+      <label>
+        CPU
+        <input name="cpu_limit" type="number" min="1" max="64" value="2" />
+      </label>
+      <label>
+        Memory (GB)
+        <input name="memory_limit_gb" type="number" min="1" max="256" value="4" />
+      </label>
+      <label>
+        Use-case
+        <select id="use-case-select">
+          <option value="">none</option>
+          {% for item in use_cases %}
+          <option value="{{ item.slug }}">{{ item.label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    </div>
+
+    <div style="display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); margin-top: 12px;">
+      <label>
+        Tools (Ctrl/Cmd+click for multi-select)
+        <select id="tools-select" multiple size="6">
+          {% for item in tools %}
+          <option value="{{ item.slug }}">{{ item.label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <label>
+        Agents (Ctrl/Cmd+click for multi-select)
+        <select id="agents-select" multiple size="6">
+          {% for item in agents %}
+          <option value="{{ item.slug }}">{{ item.label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <label>
+        Services (Ctrl/Cmd+click for multi-select)
+        <select id="services-select" multiple size="6">
+          {% for item in services %}
+          <option value="{{ item.slug }}">{{ item.label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    </div>
+
+    <input id="profile-string" type="hidden" name="profile_string" value="////" />
+
+    <label style="display: block; margin-top: 12px;">
+      Profile string
+      <input id="profile-preview" value="////" readonly />
+    </label>
+
+    <label style="display: block; margin-top: 12px;">
+      Secrets (KEY=VALUE, one per line)
+      <textarea name="secrets_text" rows="5" placeholder="GITHUB_TOKEN=...&#10;ANTHROPIC_API_KEY=..."></textarea>
+    </label>
+
+    <div style="display: flex; gap: 16px; margin-top: 12px;">
+      <label><input type="checkbox" name="ephemeral" /> Ephemeral</label>
+      <label><input type="checkbox" name="enable_gpu" /> GPU enabled</label>
+    </div>
+
+    <div style="margin-top: 14px; display: flex; gap: 10px;">
+      <button type="submit">Create</button>
+      <a href="/">Cancel</a>
+    </div>
+  </form>
+
+  <div id="create-result" style="margin-top: 12px"></div>
+</section>
+
+<script>
+  (function () {
+    const useCase = document.getElementById("use-case-select");
+    const tools = document.getElementById("tools-select");
+    const agents = document.getElementById("agents-select");
+    const services = document.getElementById("services-select");
+    const hidden = document.getElementById("profile-string");
+    const preview = document.getElementById("profile-preview");
+
+    function selectedValues(el) {
+      return Array.from(el.selectedOptions).map((opt) => opt.value).filter(Boolean).join("+");
+    }
+
+    function update() {
+      const composed = `/${useCase.value}/${selectedValues(tools)}/${selectedValues(agents)}/${selectedValues(services)}/`;
+      hidden.value = composed;
+      preview.value = composed;
+    }
+
+    [useCase, tools, agents, services].forEach((el) => {
+      el.addEventListener("change", update);
+    });
+    update();
+  })();
+</script>
+{% endblock %}

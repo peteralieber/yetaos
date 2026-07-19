@@ -1,0 +1,27 @@
+<tr id="container-row-{{ container.name }}">
+  <td><a href="/containers/{{ container.name }}">{{ container.name }}</a></td>
+  <td>{{ container.profile_string }}</td>
+  <td>{% set status = container.status %}{% include "fragments/status_badge.html" %}</td>
+  <td>{{ container.last_used or "never" }}</td>
+  <td style="display: flex; gap: 6px; flex-wrap: wrap;">
+    <button
+      hx-post="/fragments/containers/{{ container.name }}/start"
+      hx-target="#container-row-{{ container.name }}"
+      hx-swap="outerHTML"
+    >Start</button>
+    <button
+      hx-post="/fragments/containers/{{ container.name }}/stop"
+      hx-target="#container-row-{{ container.name }}"
+      hx-swap="outerHTML"
+    >Stop</button>
+    <button
+      hx-delete="/fragments/containers/{{ container.name }}"
+      hx-target="#container-row-{{ container.name }}"
+      hx-swap="outerHTML"
+      hx-confirm="Delete container {{ container.name }}?"
+    >Delete</button>
+    <a href="/containers/{{ container.name }}/shell" target="_blank" rel="noreferrer">Shell</a>
+    <a href="/containers/{{ container.name }}/code" target="_blank" rel="noreferrer">VS Code</a>
+    <a href="/api/v1/containers/{{ container.name }}/export">Export</a>
+  </td>
+</tr>
