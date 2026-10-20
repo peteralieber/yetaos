@@ -1,0 +1,2 @@
+{% set current_status = status if status is defined else container.status %}
+<span class="status {{ current_status }}">{{ current_status }}</span>

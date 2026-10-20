@@ -187,7 +187,7 @@ For in-depth information on the design, see [docs/architecture.md](docs/architec
 - systemd service + Caddy config + CI workflow
 
 📋 **Next (Milestone 3+):**
-- [ ] Build frontend UI (container list, create form, detail page)
+- [x] Build frontend UI (container list, create form, detail page)
 - [ ] Add ttyd/code-server proxying
 - [ ] Add log streaming endpoint (Server-Sent Events)
 - [ ] End-to-end testing on real LXD host

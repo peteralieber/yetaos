@@ -4,14 +4,252 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>YETAOS</title>
+    <script src="https://unpkg.com/htmx.org@2.0.4" defer></script>
+    <script src="https://unpkg.com/alpinejs@3.14.9/dist/cdn.min.js" defer></script>
     <style>
-      :root { color-scheme: light; }
-      body { font-family: "IBM Plex Sans", sans-serif; margin: 0; background: linear-gradient(140deg, #eef7ff, #f8fff0); }
-      main { max-width: 980px; margin: 0 auto; padding: 24px; }
-      .card { background: #fff; border: 1px solid #d7e4ef; border-radius: 12px; padding: 16px; }
+      :root {
+        color-scheme: light;
+        --ink: #1f2933;
+        --soft-ink: #52606d;
+        --surface: #ffffff;
+        --line: #d9e2ec;
+        --accent: #006d77;
+        --accent-2: #f4a261;
+        --ok: #2f9e44;
+        --warn: #b75d0a;
+        --bad: #c92a2a;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "IBM Plex Sans", sans-serif;
+        margin: 0;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at 15% 20%, rgba(244, 162, 97, 0.25), transparent 36%),
+          radial-gradient(circle at 85% 10%, rgba(0, 109, 119, 0.2), transparent 44%),
+          linear-gradient(160deg, #f5fbff 0%, #f9fff8 100%);
+      }
+
+      nav {
+        border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+        backdrop-filter: blur(6px);
+        background: rgba(255, 255, 255, 0.72);
+      }
+
+      .nav-inner {
+        max-width: 1100px;
+        margin: 0 auto;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 14px 24px;
+      }
+
+      .brand {
+        font-family: "IBM Plex Mono", monospace;
+        font-weight: 600;
+        text-decoration: none;
+        color: var(--ink);
+        letter-spacing: 0.02em;
+      }
+
+      .nav-links {
+        display: flex;
+        gap: 12px;
+      }
+
+      main {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 20px 24px 36px;
+      }
+
+      .panel {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 18px;
+        box-shadow: 0 12px 40px rgba(31, 41, 51, 0.06);
+      }
+
+      .row {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      .muted {
+        color: var(--soft-ink);
+      }
+
+      .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 10px;
+        border: 1px solid var(--line);
+        padding: 8px 12px;
+        text-decoration: none;
+        color: var(--ink);
+        background: #fff;
+        font-size: 0.92rem;
+      }
+
+      .button.primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
+
+      .button.warn {
+        background: #fff8f0;
+        border-color: #ffd6a5;
+        color: var(--warn);
+      }
+
+      .button.bad {
+        background: #fff5f5;
+        border-color: #ffc9c9;
+        color: var(--bad);
+      }
+
+      .status {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border-radius: 999px;
+        padding: 4px 10px;
+        font-size: 0.8rem;
+        font-weight: 600;
+      }
+
+      .status.running {
+        background: #ebfbee;
+        color: var(--ok);
+      }
+
+      .status.starting {
+        background: #fff9db;
+        color: #9c6f00;
+      }
+
+      .status.stopped {
+        background: #f1f3f5;
+        color: #495057;
+      }
+
+      .status.error {
+        background: #fff5f5;
+        color: var(--bad);
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      th,
+      td {
+        border-bottom: 1px solid var(--line);
+        text-align: left;
+        padding: 12px 8px;
+        vertical-align: top;
+      }
+
+      th {
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        color: var(--soft-ink);
+      }
+
+      input,
+      textarea,
+      select {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 8px 10px;
+        font: inherit;
+        background: #fff;
+      }
+
+      .field-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .note-ok {
+        border: 1px solid #b2f2bb;
+        background: #ebfbee;
+        border-radius: 10px;
+        padding: 10px;
+      }
+
+      .note-error {
+        border: 1px solid #ffc9c9;
+        background: #fff5f5;
+        border-radius: 10px;
+        padding: 10px;
+      }
+
+      @media (max-width: 720px) {
+        main {
+          padding: 14px;
+        }
+
+        .field-grid {
+          grid-template-columns: 1fr;
+        }
+
+        table,
+        thead,
+        tbody,
+        tr,
+        th,
+        td {
+          display: block;
+        }
+
+        thead {
+          display: none;
+        }
+
+        tr {
+          padding: 10px 0;
+          border-bottom: 1px solid var(--line);
+        }
+
+        td {
+          border: none;
+          padding: 4px 0;
+        }
+      }
     </style>
   </head>
   <body>
+    <nav>
+      <div class="nav-inner">
+        <a class="brand" href="/">YETAOS / DEV ORCHESTRATOR</a>
+        <div class="nav-links">
+          <a class="button" href="/">Dashboard</a>
+          <a class="button primary" href="/create">New Environment</a>
+        </div>
+      </div>
+    </nav>
     <main>
       {% block content %}{% endblock %}
     </main>

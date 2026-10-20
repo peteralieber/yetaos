@@ -1,8 +1,31 @@
 {% extends "base.html" %}
 {% block content %}
-<h1>YETAOS MVP</h1>
-<p>Backend API is available at /api/v1.</p>
-<div class="card">
-  <p>Use the API endpoints to manage containers. Frontend interactions are intentionally lightweight in this MVP.</p>
-</div>
+<section class="panel">
+  <div class="row">
+    <div>
+      <h1 style="margin: 0 0 6px">Containers</h1>
+      <p class="muted" style="margin: 0">Live view of your dev environments. Status refreshes every 10 seconds.</p>
+    </div>
+    <a class="button primary" href="/create">Create Environment</a>
+  </div>
+</section>
+
+<section style="margin-top: 14px" class="panel">
+  <div
+    id="container-list"
+    hx-get="/fragments/containers"
+    hx-trigger="load, every 10s"
+    hx-swap="innerHTML"
+  >
+    {% include "fragments/container_list.html" %}
+  </div>
+</section>
+
+<script>
+  document.body.addEventListener("snapshot-restored", function () {
+    if (window.htmx) {
+      htmx.trigger("#container-list", "refresh");
+    }
+  });
+</script>
 {% endblock %}
