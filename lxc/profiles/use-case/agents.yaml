@@ -1,0 +1,9 @@
+name: use-case/agents
+description: AI CLI agents — Claude CLI and GitHub Copilot CLI
+category: use-case
+depends:
+  - tool/node
+lxd:
+  config: {}
+  devices: {}
+cloud_init: lxc/cloud-init/use-case/agents.sh

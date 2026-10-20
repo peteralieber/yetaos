@@ -1,16 +1,16 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="card">
-  <div style="display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; flex-wrap: wrap;">
+<section class="panel">
+  <div class="row">
     <div>
       <h1 style="margin: 0 0 6px">Containers</h1>
-      <p style="margin: 0; color: #426077">Status refreshes every 10 seconds.</p>
+      <p class="muted" style="margin: 0">Live view of your dev environments. Status refreshes every 10 seconds.</p>
     </div>
-    <a href="/create">Create Environment</a>
+    <a class="button primary" href="/create">Create Environment</a>
   </div>
 </section>
 
-<section class="card" style="margin-top: 12px;">
+<section style="margin-top: 14px" class="panel">
   <div
     id="container-list"
     hx-get="/fragments/containers"
@@ -20,4 +20,12 @@
     {% include "fragments/container_list.html" %}
   </div>
 </section>
+
+<script>
+  document.body.addEventListener("snapshot-restored", function () {
+    if (window.htmx) {
+      htmx.trigger("#container-list", "refresh");
+    }
+  });
+</script>
 {% endblock %}

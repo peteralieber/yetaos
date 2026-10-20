@@ -1,12 +1,12 @@
 {% if records %}
-<table style="width: 100%; border-collapse: collapse;">
+<table>
   <thead>
     <tr>
-      <th style="text-align: left;">Name</th>
-      <th style="text-align: left;">Profile</th>
-      <th style="text-align: left;">Status</th>
-      <th style="text-align: left;">Last Used</th>
-      <th style="text-align: left;">Actions</th>
+      <th>Name</th>
+      <th>Profile</th>
+      <th>Status</th>
+      <th>Last used</th>
+      <th>Actions</th>
     </tr>
   </thead>
   <tbody>
@@ -16,5 +16,5 @@
   </tbody>
 </table>
 {% else %}
-<p>No containers yet. <a href="/create">Create one</a>.</p>
+<p class="muted" style="margin: 0">No containers yet. Create one to begin.</p>
 {% endif %}

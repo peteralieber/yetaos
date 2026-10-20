@@ -27,5 +27,4 @@ app.include_router(health_router)
 app.include_router(profiles_router)
 app.include_router(containers_router)
 app.include_router(ui_router)
-
 app.mount("/static", StaticFiles(directory=str(Path(__file__).parent / "static")), name="static")

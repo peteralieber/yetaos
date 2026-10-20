@@ -1,54 +1,66 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="card">
-  <h1 style="margin-top: 0">{{ container.name }}</h1>
-  <p style="margin-top: 0; color: #426077">{{ container.profile_string }}</p>
-
-  <div
-    id="status-fragment"
-    hx-get="/fragments/containers/{{ container.name }}/status"
-    hx-trigger="load, every 10s, refresh"
-    hx-swap="innerHTML"
-  >
-    {% include "fragments/status_badge.html" with context %}
+<section class="panel">
+  <div class="row">
+    <div>
+      <h1 style="margin: 0 0 6px">{{ container.name }}</h1>
+      <p class="muted" style="margin: 0">{{ container.profile_string }}</p>
+    </div>
+    <div
+      hx-get="/fragments/containers/{{ container.name }}/status"
+      hx-trigger="load, every 10s"
+      hx-swap="innerHTML"
+    >
+      {% include "fragments/status_badge.html" with context %}
+    </div>
   </div>
 
-  <div style="display: flex; gap: 18px; flex-wrap: wrap; margin: 12px 0;">
-    <div><strong>Created:</strong> {{ container.created_at }}</div>
-    <div><strong>Last used:</strong> {{ container.last_used or "never" }}</div>
+  <div class="field-grid" style="margin-top: 12px">
+    <div>
+      <strong>Created:</strong>
+      <div class="muted">{{ container.created_at }}</div>
+    </div>
+    <div>
+      <strong>Last Used:</strong>
+      <div class="muted">{{ container.last_used or "never" }}</div>
+    </div>
   </div>
 
-  <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+  <div class="actions" style="margin-top: 14px">
     <button
+      class="button"
       hx-post="/fragments/containers/{{ container.name }}/start"
-      hx-swap="none"
-      hx-on::after-request="if (event.detail.successful) htmx.trigger('#status-fragment', 'refresh')"
+      hx-target="#container-row-{{ container.name }}"
+      hx-swap="outerHTML"
     >Start</button>
     <button
+      class="button warn"
       hx-post="/fragments/containers/{{ container.name }}/stop"
-      hx-swap="none"
-      hx-on::after-request="if (event.detail.successful) htmx.trigger('#status-fragment', 'refresh')"
+      hx-target="#container-row-{{ container.name }}"
+      hx-swap="outerHTML"
     >Stop</button>
     <button
+      class="button bad"
       hx-delete="/fragments/containers/{{ container.name }}"
       hx-confirm="Delete container {{ container.name }}?"
       hx-on::after-request="if (event.detail.successful) window.location = '/'"
     >Delete</button>
-    <a href="/containers/{{ container.name }}/shell" target="_blank" rel="noreferrer">Open Shell</a>
-    <a href="/containers/{{ container.name }}/code" target="_blank" rel="noreferrer">Open VS Code</a>
-    <a href="/api/v1/containers/{{ container.name }}/export">Export Workspace</a>
+    <a class="button" href="/containers/{{ container.name }}/shell" target="_blank" rel="noreferrer">Open Shell</a>
+    <a class="button" href="/containers/{{ container.name }}/code" target="_blank" rel="noreferrer">Open VS Code</a>
+    <a class="button" href="/api/v1/containers/{{ container.name }}/export">Export Workspace</a>
   </div>
 </section>
 
-<section class="card" style="margin-top: 12px;">
+<section class="panel" style="margin-top: 14px">
   <h2 style="margin-top: 0">Snapshots</h2>
   <form
+    class="actions"
     hx-post="/fragments/containers/{{ container.name }}/snapshots"
     hx-target="#snapshot-list"
     hx-swap="innerHTML"
   >
     <input type="text" name="snapshot_name" placeholder="snapshot name" required />
-    <button type="submit">Create Snapshot</button>
+    <button type="submit" class="button">Create Snapshot</button>
   </form>
 
   <div
@@ -60,5 +72,15 @@
   >
     {% include "fragments/snapshot_list.html" with context %}
   </div>
+</section>
+
+<section class="panel" style="margin-top: 14px">
+  <h2 style="margin-top: 0">Container Row Preview</h2>
+  <table>
+    <tbody>
+      {% set container = container %}
+      {% include "fragments/container_row.html" %}
+    </tbody>
+  </table>
 </section>
 {% endblock %}

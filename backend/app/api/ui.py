@@ -6,8 +6,8 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import ValidationError
 
-from app.api.containers import _write_secrets
 from app.api.deps import get_lxd_service, get_registry, get_store
+from app.api.containers import _write_secrets
 from app.config import get_settings
 from app.lxd.container_init import build_user_data
 from app.lxd.containers import LXDContainerService
@@ -91,16 +91,12 @@ async def create_page(
     agents = _profile_options(registry, "agent")
     services = _profile_options(registry, "service")
 
-    return templates.TemplateResponse(
-        request,
-        "create.html",
-        {
-            "use_cases": use_cases,
-            "tools": tools,
-            "agents": agents,
-            "services": services,
-        },
-    )
+    return templates.TemplateResponse(request, "create.html", {
+        "use_cases": use_cases,
+        "tools": tools,
+        "agents": agents,
+        "services": services,
+    })
 
 
 @router.get("/containers/{name}", response_class=HTMLResponse)

@@ -1,31 +1,23 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="card">
+<section class="panel" x-data="profileBuilder()">
   <h1 style="margin-top: 0">Create Environment</h1>
-  <p style="margin-top: 0; color: #426077">Compose a profile string and launch a container.</p>
+  <p class="muted">Compose a profile string from declarative profile categories, then launch the container.</p>
 
   <form
     hx-post="/fragments/containers/create"
     hx-target="#create-result"
     hx-swap="innerHTML"
+    style="margin-top: 14px"
   >
-    <div style="display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
+    <div class="field-grid">
       <label>
-        Name
-        <input name="name" required pattern="[a-z][a-z0-9-]*" maxlength="63" placeholder="devbox" />
+        Container Name
+        <input type="text" name="name" placeholder="devbox" required pattern="[a-z][a-z0-9-]*" maxlength="63" />
       </label>
       <label>
-        CPU
-        <input name="cpu_limit" type="number" min="1" max="64" value="2" />
-      </label>
-      <label>
-        Memory (GB)
-        <input name="memory_limit_gb" type="number" min="1" max="256" value="4" />
-      </label>
-      <label>
-        Use-case
-        <select id="use-case-select">
-          <option value="">none</option>
+        Use Case
+        <select x-model="useCase" @change="recompute()">
           {% for item in use_cases %}
           <option value="{{ item.slug }}">{{ item.label }}</option>
           {% endfor %}
@@ -33,28 +25,29 @@
       </label>
     </div>
 
-    <div style="display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); margin-top: 12px;">
+    <div class="field-grid" style="margin-top: 12px">
       <label>
-        Tools (Ctrl/Cmd+click for multi-select)
-        <select id="tools-select" multiple size="6">
+        Tools
+        <select x-model="tools" multiple size="6" @change="recompute()">
           {% for item in tools %}
           <option value="{{ item.slug }}">{{ item.label }}</option>
           {% endfor %}
         </select>
       </label>
-
       <label>
-        Agents (Ctrl/Cmd+click for multi-select)
-        <select id="agents-select" multiple size="6">
+        Agents
+        <select x-model="agents" multiple size="6" @change="recompute()">
           {% for item in agents %}
           <option value="{{ item.slug }}">{{ item.label }}</option>
           {% endfor %}
         </select>
       </label>
+    </div>
 
+    <div style="margin-top: 12px">
       <label>
-        Services (Ctrl/Cmd+click for multi-select)
-        <select id="services-select" multiple size="6">
+        Services
+        <select x-model="services" multiple size="5" @change="recompute()">
           {% for item in services %}
           <option value="{{ item.slug }}">{{ item.label }}</option>
           {% endfor %}
@@ -62,26 +55,36 @@
       </label>
     </div>
 
-    <input id="profile-string" type="hidden" name="profile_string" value="////" />
-
-    <label style="display: block; margin-top: 12px;">
-      Profile string
-      <input id="profile-preview" value="////" readonly />
-    </label>
-
-    <label style="display: block; margin-top: 12px;">
-      Secrets (KEY=VALUE, one per line)
-      <textarea name="secrets_text" rows="5" placeholder="GITHUB_TOKEN=...&#10;ANTHROPIC_API_KEY=..."></textarea>
-    </label>
-
-    <div style="display: flex; gap: 16px; margin-top: 12px;">
-      <label><input type="checkbox" name="ephemeral" /> Ephemeral</label>
-      <label><input type="checkbox" name="enable_gpu" /> GPU enabled</label>
+    <div class="field-grid" style="margin-top: 12px">
+      <label>
+        Profile String
+        <input type="text" name="profile_string" x-model="profileString" readonly />
+      </label>
+      <label>
+        Secrets (KEY=VALUE)
+        <textarea name="secrets_text" rows="3" placeholder="GITHUB_TOKEN=...\nHF_TOKEN=..."></textarea>
+      </label>
     </div>
 
-    <div style="margin-top: 14px; display: flex; gap: 10px;">
-      <button type="submit">Create</button>
-      <a href="/">Cancel</a>
+    <div class="field-grid" style="margin-top: 12px">
+      <label>
+        CPU Limit
+        <input type="number" name="cpu_limit" min="1" max="64" value="2" required />
+      </label>
+      <label>
+        Memory Limit (GB)
+        <input type="number" name="memory_limit_gb" min="1" max="256" value="4" required />
+      </label>
+    </div>
+
+    <div class="actions" style="margin-top: 12px">
+      <label><input type="checkbox" name="ephemeral" /> Ephemeral container</label>
+      <label><input type="checkbox" name="enable_gpu" /> Enable GPU profile compatibility</label>
+    </div>
+
+    <div class="actions" style="margin-top: 14px">
+      <button type="submit" class="button primary">Create Container</button>
+      <a class="button" href="/">Cancel</a>
     </div>
   </form>
 
@@ -89,28 +92,21 @@
 </section>
 
 <script>
-  (function () {
-    const useCase = document.getElementById("use-case-select");
-    const tools = document.getElementById("tools-select");
-    const agents = document.getElementById("agents-select");
-    const services = document.getElementById("services-select");
-    const hidden = document.getElementById("profile-string");
-    const preview = document.getElementById("profile-preview");
-
-    function selectedValues(el) {
-      return Array.from(el.selectedOptions).map((opt) => opt.value).filter(Boolean).join("+");
-    }
-
-    function update() {
-      const composed = `/${useCase.value}/${selectedValues(tools)}/${selectedValues(agents)}/${selectedValues(services)}/`;
-      hidden.value = composed;
-      preview.value = composed;
-    }
-
-    [useCase, tools, agents, services].forEach((el) => {
-      el.addEventListener("change", update);
-    });
-    update();
-  })();
+  function profileBuilder() {
+    return {
+      useCase: "{{ use_cases[0].slug if use_cases else 'dev' }}",
+      tools: [],
+      agents: [],
+      services: [],
+      profileString: "",
+      recompute() {
+        const segments = [this.useCase, ...this.tools, ...this.agents, ...this.services].filter(Boolean);
+        this.profileString = "/" + segments.join("/") + "///";
+      },
+      init() {
+        this.recompute();
+      },
+    };
+  }
 </script>
 {% endblock %}
