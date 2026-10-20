@@ -72,7 +72,7 @@ Each environment runs in an isolated LXC container and can be **ephemeral** (aut
 - **LXC**
   - Ubuntu 24.04 base image
   - Declarative profiles: `/{use-case}/{tools}/{agents}/{services}/`
-  - 5 profiles implemented: base, python, python:rocm, rocm-gpu, dev
+  - 11 profiles implemented: base, rocm-gpu, python, python:rocm, clang:riscv, node, electron, dev, blender, comfyui, agents
   - Cloud-init fragments (shell scripts, all idempotent & pinned versions)
 
 ---
@@ -89,7 +89,7 @@ Each environment runs in an isolated LXC container and can be **ephemeral** (aut
 ```bash
 cd backend
 uv sync --all-groups          # Install dev dependencies
-uv run pytest                 # Run tests (all 7 passing)
+uv run pytest                 # Run tests (all 35 passing)
 uv run ruff check app tests   # Lint
 uv run mypy app               # Type-check
 ```
@@ -183,11 +183,10 @@ For in-depth information on the design, see [docs/architecture.md](docs/architec
 - JSON persistence layer
 - 7 integration tests (all passing)
 - Quality gates: ruff lint ✓ mypy strict ✓ pytest ✓
-- 5 LXC profiles + 3 cloud-init fragments
+- 11 LXC profiles + 9 cloud-init fragments
 - systemd service + Caddy config + CI workflow
 
 📋 **Next (Milestone 3+):**
-- [ ] Complete all remaining profiles (clang:riscv, node, electron, blender, comfyui, agents)
 - [ ] Build frontend UI (container list, create form, detail page)
 - [ ] Add ttyd/code-server proxying
 - [ ] Add log streaming endpoint (Server-Sent Events)

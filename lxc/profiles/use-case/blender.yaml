@@ -1,0 +1,11 @@
+name: use-case/blender
+description: Blender 3D creation suite
+category: use-case
+depends:
+  - service/base
+lxd:
+  config:
+    limits.cpu: "4"
+    limits.memory: "8GB"
+  devices: {}
+cloud_init: lxc/cloud-init/use-case/blender.sh

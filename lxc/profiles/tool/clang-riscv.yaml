@@ -1,0 +1,9 @@
+name: tool/clang:riscv
+description: Clang and RISC-V cross-compilation toolchain
+category: tool
+depends:
+  - service/base
+lxd:
+  config: {}
+  devices: {}
+cloud_init: lxc/cloud-init/tool/clang-riscv.sh
