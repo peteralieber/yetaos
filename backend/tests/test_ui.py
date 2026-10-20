@@ -42,6 +42,9 @@ def test_detail_page_and_actions(client) -> None:
     detail = client.get("/containers/devbox")
     assert detail.status_code == 200
     assert "devbox" in detail.text
+    assert "Open Shell" in detail.text
+    assert "Open VS Code" in detail.text
+    assert "/api/v1/containers/devbox/export" in detail.text
 
     start = client.post("/fragments/containers/devbox/start")
     assert start.status_code == 200

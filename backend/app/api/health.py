@@ -10,13 +10,14 @@ router = APIRouter(tags=["health"])
 @router.get("/health")
 async def health() -> dict[str, str]:
     settings = get_settings()
-    lxd_status = "ok"
+    lxd_status = "mock" if settings.mock_lxd else "ok"
     db_status = "ok"
 
-    try:
-        check_lxd_socket(settings.lxd_socket)
-    except Exception as exc:  # noqa: BLE001
-        lxd_status = f"error: {exc}"
+    if not settings.mock_lxd:
+        try:
+            check_lxd_socket(settings.lxd_socket)
+        except Exception as exc:  # noqa: BLE001
+            lxd_status = f"error: {exc}"
 
     try:
         JsonStore(settings.store_path).load()

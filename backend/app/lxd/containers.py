@@ -8,8 +8,14 @@ from app.lxd.client import get_pylxd_client
 
 class LXDContainerService:
     def __init__(self, socket_path: str, client_factory: Callable[[str], Any] | None = None) -> None:
-        factory = client_factory or get_pylxd_client
-        self._client = factory(socket_path)
+        self._socket_path = socket_path
+        self._client_factory = client_factory or get_pylxd_client
+        self._client: Any | None = None
+
+    def _get_client(self) -> Any:
+        if self._client is None:
+            self._client = self._client_factory(self._socket_path)
+        return self._client
 
     async def _run(self, func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
         loop = asyncio.get_running_loop()
@@ -28,35 +34,54 @@ class LXDContainerService:
             "profiles": [],
             "config": {**config, "user.user-data": user_data},
         }
-        container = await self._run(self._client.containers.create, definition, wait=True)
+        client = self._get_client()
+        container = await self._run(client.containers.create, definition, wait=True)
         await self._run(container.start, wait=True)
 
     async def start_container(self, name: str) -> None:
-        container = await self._run(self._client.containers.get, name)
+        client = self._get_client()
+        container = await self._run(client.containers.get, name)
         await self._run(container.start, wait=True)
 
     async def stop_container(self, name: str) -> None:
-        container = await self._run(self._client.containers.get, name)
+        client = self._get_client()
+        container = await self._run(client.containers.get, name)
         await self._run(container.stop, wait=True)
 
     async def delete_container(self, name: str) -> None:
-        container = await self._run(self._client.containers.get, name)
+        client = self._get_client()
+        container = await self._run(client.containers.get, name)
         await self._run(container.delete, wait=True)
 
     async def get_status(self, name: str) -> str:
-        container = await self._run(self._client.containers.get, name)
+        client = self._get_client()
+        container = await self._run(client.containers.get, name)
         return str(container.status).lower()
 
     async def create_snapshot(self, name: str, snapshot_name: str) -> None:
-        container = await self._run(self._client.containers.get, name)
+        client = self._get_client()
+        container = await self._run(client.containers.get, name)
         await self._run(container.snapshots.create, snapshot_name, stateful=False, wait=True)
 
     async def list_snapshots(self, name: str) -> list[str]:
-        container = await self._run(self._client.containers.get, name)
+        client = self._get_client()
+        container = await self._run(client.containers.get, name)
         snapshots = await self._run(lambda: list(container.snapshots.all()))
         return [snap.name for snap in snapshots]
 
     async def restore_snapshot(self, name: str, snapshot_name: str) -> None:
-        container = await self._run(self._client.containers.get, name)
+        client = self._get_client()
+        container = await self._run(client.containers.get, name)
         snapshot = await self._run(container.snapshots.get, snapshot_name)
         await self._run(snapshot.restore, wait=True)
+
+    async def export_workspace(self, name: str) -> bytes:
+        client = self._get_client()
+        container = await self._run(client.containers.get, name)
+        archive_path = "/tmp/yetaos-export.tar.gz"
+        await self._run(container.execute, ["sh", "-lc", f"tar czf {archive_path} -C /workspace ."])
+        payload = await self._run(container.files.get, archive_path)
+        await self._run(container.execute, ["rm", "-f", archive_path])
+        if isinstance(payload, bytes):
+            return payload
+        return str(payload).encode("utf-8")

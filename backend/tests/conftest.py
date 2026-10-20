@@ -35,11 +35,17 @@ class FakeSnapshots:
 
 
 class FakeContainer:
+    class _FakeFiles:
+        def get(self, path: str) -> bytes:
+            _ = path
+            return b"fake-archive"
+
     def __init__(self, name: str, config: dict[str, str]) -> None:
         self.name = name
         self.config = config
         self.status = "stopped"
         self.snapshots = FakeSnapshots()
+        self.files = FakeContainer._FakeFiles()
 
     def start(self, wait: bool = True) -> None:
         _ = wait
@@ -51,6 +57,10 @@ class FakeContainer:
 
     def delete(self, wait: bool = True) -> None:
         _ = wait
+
+    def execute(self, cmd: list[str], environment: dict[str, str] | None = None) -> tuple[int, str, str]:
+        _ = (cmd, environment)
+        return (0, "", "")
 
 
 class FakeContainersCollection:

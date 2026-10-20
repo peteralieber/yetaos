@@ -1,0 +1,9 @@
+name: service/vscode-server
+description: VS Code Server service profile
+category: service
+depends:
+  - service/base
+lxd:
+  config: {}
+  devices: {}
+cloud_init: lxc/cloud-init/service/vscode-server.sh

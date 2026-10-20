@@ -10,4 +10,4 @@ def check_lxd_socket(socket_path: str) -> None:
 def get_pylxd_client(socket_path: str) -> Any:
     from pylxd import Client
 
-    return Client(endpoint=f"unix://{socket_path}")
+    return Client(endpoint=socket_path)

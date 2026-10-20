@@ -1,7 +1,9 @@
 from datetime import UTC, datetime
+import io
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi.responses import StreamingResponse
 
 from app.api.deps import get_lxd_service, get_registry, get_store, verify_api_key
 from app.config import get_settings
@@ -229,3 +231,18 @@ async def restore_snapshot(
         raise HTTPException(status_code=404, detail="container not found")
     await lxd.restore_snapshot(name, snapshot)
     return {"status": "accepted", "snapshot": snapshot}
+
+
+@router.get("/{name}/export", dependencies=[Depends(verify_api_key)])
+async def export_container_workspace(
+    name: str,
+    store: JsonStore = Depends(get_store),
+    lxd: LXDContainerService = Depends(get_lxd_service),
+) -> StreamingResponse:
+    if not store.get(name):
+        raise HTTPException(status_code=404, detail="container not found")
+
+    payload = await lxd.export_workspace(name)
+    filename = f"{name}-workspace.tar.gz"
+    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+    return StreamingResponse(io.BytesIO(payload), media_type="application/gzip", headers=headers)

@@ -3,6 +3,8 @@ description: Generic development container
 category: use-case
 depends:
   - service/base
+  - service/vscode-server
+  - service/ttyd
 lxd:
   config: {}
   devices: {}
